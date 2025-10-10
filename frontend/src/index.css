@@ -1,0 +1,208 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+
+@custom-variant dark (&:is(.dark *));
+@config "../tailwind.config.js";
+
+@layer base {
+  :root {
+    /* Furniture store color palette - warm and inviting */
+    --background: 35 20% 97%; /* Warm beige background */
+    --background-secondary: 30 15% 94%;
+    --foreground: 25 15% 25%; /* Warm dark brown */
+
+    --card: 0 0% 100%;
+    --card-foreground: 25 15% 25%;
+    --card-shadow: 25 25% 15%; /* Deep brown shadow */
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 25 15% 25%;
+
+    /* Elegant furniture brand colors */
+    --primary: 25 55% 45%; /* Rich wood brown */
+    --primary-light: 25 45% 60%;
+    --primary-dark: 25 65% 30%;
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 35 25% 90%; /* Soft cream */
+    --secondary-foreground: 25 15% 20%;
+
+    --muted: 30 15% 92%;
+    --muted-foreground: 25 10% 50%;
+
+    --accent: 160 40% 45%; /* Natural green accent */
+    --accent-foreground: 0 0% 100%;
+
+    --destructive: 0 75% 55%;
+    --destructive-foreground: 0 0% 98%;
+
+    --success: 142 70% 40%; /* Green for stock/available */
+    --success-foreground: 0 0% 98%;
+
+    --info: 200 80% 50%;
+    --info-foreground: 0 0% 98%;
+
+    --border: 30 20% 88%;
+    --input: 30 15% 95%;
+    --ring: 25 55% 45%;
+
+    /* Furniture store gradients - warm and luxurious */
+    --gradient-primary: linear-gradient(
+      135deg,
+      hsl(25 45% 60%) 0%,
+      hsl(25 65% 30%) 100%
+    );
+    --gradient-background: linear-gradient(
+      135deg,
+      hsl(35 20% 97%) 0%,
+      hsl(30 25% 93%) 100%
+    );
+    --gradient-card: linear-gradient(
+      135deg,
+      hsl(0 0% 100%) 0%,
+      hsl(35 15% 98%) 100%
+    );
+    --gradient-hero: linear-gradient(
+      135deg,
+      hsl(35 30% 95%) 0%,
+      hsl(25 20% 90%) 100%
+    );
+
+    /* Elegant shadows for product cards */
+    --shadow-sm: 0 1px 3px 0 hsl(25 25% 15% / 0.08);
+    --shadow-md: 0 4px 8px -2px hsl(25 25% 15% / 0.12),
+      0 2px 4px -2px hsl(25 25% 15% / 0.08);
+    --shadow-lg: 0 12px 24px -4px hsl(25 25% 15% / 0.15),
+      0 8px 16px -6px hsl(25 25% 15% / 0.10);
+    --shadow-xl: 0 20px 40px -8px hsl(25 25% 15% / 0.20),
+      0 12px 24px -8px hsl(25 25% 15% / 0.12);
+    --shadow-product: 0 8px 16px -4px hsl(25 25% 15% / 0.1),
+      0 4px 8px -4px hsl(25 25% 15% / 0.06);
+
+    /* Smooth, elegant transitions */
+    --transition-smooth: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    --transition-elegant: all 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+    --transition-bounce: all 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
+
+    --radius: 0.75rem; /* Slightly larger radius for premium feel */
+
+    /* Sidebar colors */
+    --sidebar-background: 30 15% 96%;
+    --sidebar-foreground: 25 15% 25%;
+    --sidebar-primary: 25 55% 45%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 35 20% 92%;
+    --sidebar-accent-foreground: 25 15% 25%;
+    --sidebar-border: 30 20% 88%;
+    --sidebar-ring: 25 55% 45%;
+  }
+
+  .dark {
+    /* Dark mode for furniture store - sophisticated and modern */
+    --background: 25 15% 12%;
+    --background-secondary: 25 12% 15%;
+    --foreground: 30 10% 92%;
+
+    --card: 25 12% 15%;
+    --card-foreground: 30 10% 92%;
+
+    --popover: 25 12% 15%;
+    --popover-foreground: 30 10% 92%;
+
+    --primary: 25 45% 55%; /* Lighter wood tone for dark mode */
+    --primary-light: 25 50% 65%;
+    --primary-dark: 25 55% 45%;
+    --primary-foreground: 25 15% 12%;
+
+    --secondary: 25 10% 20%;
+    --secondary-foreground: 30 10% 92%;
+
+    --muted: 25 8% 22%;
+    --muted-foreground: 30 8% 65%;
+
+    --accent: 160 35% 50%;
+    --accent-foreground: 0 0% 100%;
+
+    --destructive: 0 65% 50%;
+    --destructive-foreground: 30 10% 92%;
+
+    --success: 142 60% 45%;
+    --success-foreground: 30 10% 92%;
+
+    --border: 25 10% 25%;
+    --input: 25 8% 20%;
+    --ring: 25 45% 55%;
+
+    --sidebar-background: 25 12% 14%;
+    --sidebar-foreground: 30 10% 92%;
+    --sidebar-primary: 25 45% 55%;
+    --sidebar-primary-foreground: 25 15% 12%;
+    --sidebar-accent: 25 10% 20%;
+    --sidebar-accent-foreground: 30 10% 92%;
+    --sidebar-border: 25 10% 25%;
+    --sidebar-ring: 25 45% 55%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+    font-feature-settings: "kern" 1, "liga" 1;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  /* Custom scrollbar for furniture store */
+  ::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+
+  ::-webkit-scrollbar-track {
+    @apply bg-background-secondary;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    @apply bg-primary/40 rounded-lg;
+    transition: background-color 0.2s ease;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    @apply bg-primary/60;
+  }
+
+  /* Product image optimization */
+  img {
+    @apply max-w-full h-auto;
+  }
+}
+
+@layer utilities {
+  /* Product card shadows */
+  .shadow-product {
+    box-shadow: var(--shadow-product);
+  }
+
+  .shadow-product-hover {
+    box-shadow: var(--shadow-lg);
+  }
+
+  /* Furniture-specific gradients */
+  .bg-gradient-hero {
+    background: var(--gradient-hero);
+  }
+
+  .bg-gradient-card {
+    background: var(--gradient-card);
+  }
+
+  /* Premium transitions */
+  .transition-elegant {
+    transition: var(--transition-elegant);
+  }
+}
+
