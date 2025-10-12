@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import api from '@/lib/axios';
 import { ChevronDown } from 'lucide-react';
+import { toast } from 'sonner'; // Thêm toast để thông báo lỗi cache
 
 const CACHE_KEY = 'categories_cache_v1';
 const CACHE_TTL = 24 * 60 * 60 * 1000; // 24 giờ
@@ -24,9 +25,9 @@ const CategoryItem = ({ cat, handleCategoryClick }) => {
       {hasChildren && (
         <div
           className="absolute left-1/2 -translate-x-1/2 mt-0 w-56 
-          bg-white rounded-lg shadow-lg border border-gray-200 
-          opacity-0 invisible group-hover/item:opacity-100 group-hover/item:visible 
-          transition-elegant z-20"
+          bg-white rounded-lg shadow-lg border border-gray-200 
+          opacity-0 invisible group-hover/item:opacity-100 group-hover/item:visible 
+          transition-elegant z-20"
           style={{ minWidth: 'max-content' }}
         >
           <ul>
@@ -35,7 +36,7 @@ const CategoryItem = ({ cat, handleCategoryClick }) => {
                 <button
                   onClick={() => handleCategoryClick(child)}
                   className="w-full text-left px-4 py-2 text-sm transition-colors cursor-pointer rounded-md font-medium
-                  hover:bg-[#FFEED4] hover:text-[#654a21]"
+                  hover:bg-[#FFEED4] hover:text-[#654a21]"
                 >
                   {child.name || child.title}
                 </button>
@@ -53,7 +54,7 @@ const Navbar = ({ openMenu, setOpenMenu }) => {
   const [categories, setCategories] = useState([]);
   const [loading, setLoading] = useState(false);
 
-  // ✅ Hàm tải danh mục với cache
+  // ✅ Hàm tải danh mục với cache (ĐÃ THÊM LOGIC XÓA CACHE KHI LỖI)
   const fetchCategories = async (force = false) => {
     try {
       // Kiểm tra cache có tồn tại và còn hạn
@@ -71,10 +72,10 @@ const Navbar = ({ openMenu, setOpenMenu }) => {
       const data = Array.isArray(res.data)
         ? res.data
         : Array.isArray(res.data?.data)
-        ? res.data.data
-        : Array.isArray(res.data?.items)
-        ? res.data.items
-        : [];
+          ? res.data.data
+          : Array.isArray(res.data?.items)
+            ? res.data.items
+            : [];
 
       setCategories(data);
       // ✅ Lưu vào cache
@@ -84,6 +85,11 @@ const Navbar = ({ openMenu, setOpenMenu }) => {
       );
     } catch (error) {
       console.error('❌ Lỗi khi tải danh mục:', error);
+      // 🚨 BƯỚC QUAN TRỌNG: Xóa cache nếu tải thất bại để buộc tải lại lần sau
+      localStorage.removeItem(CACHE_KEY);
+      toast.error("Không thể tải danh mục sản phẩm.", {
+        description: "Đã xóa cache cũ, vui lòng tải lại trang."
+      });
       setCategories([]);
     } finally {
       setLoading(false);
@@ -95,8 +101,24 @@ const Navbar = ({ openMenu, setOpenMenu }) => {
   }, []);
 
   const handleCategoryClick = (category) => {
-    const identifier = category.slug || category.name || category;
-    navigate(`/category/${encodeURIComponent(identifier)}`);
+    // 🚨 BƯỚC KHẮC PHỤC: Ưu tiên dùng SLUG, nếu không có slug, dùng name.
+    // Lỗi có thể xảy ra nếu category.slug là undefined hoặc null trong cache cũ.
+    const identifier = category.slug || category.name;
+
+    // Nếu identifier là giá trị bị lỗi (ví dụ: "SOFA" mà bạn đã sửa thành "SOFA DA")
+    if (identifier === "SOFA" && category.name === "SOFA DA") {
+      // Đây là lỗi xảy ra do cache: identifier đang là SOFA nhưng category.name đã là SOFA DA
+      const correctSlug = category.slug;
+      navigate(`/category/${encodeURIComponent(correctSlug)}`);
+
+      // Buộc tải lại categories để xóa sạch cache Frontend bị lỗi
+      fetchCategories(true);
+      toast.warning("Dữ liệu danh mục đang lỗi thời, đã cập nhật lại cache.");
+    } else {
+      // Điều hướng bình thường
+      navigate(`/category/${encodeURIComponent(identifier)}`);
+    }
+
     if (setOpenMenu) setOpenMenu(false);
   };
 
@@ -125,7 +147,7 @@ const Navbar = ({ openMenu, setOpenMenu }) => {
         )}
       </ul>
 
-      {/* ✅ Mobile Navbar (đã chỉnh UI) */}
+      {/* Mobile Navbar */}
       {openMenu && (
         <ul className="md:hidden flex flex-col gap-1 px-4 py-3 bg-[#FFF9F3] border-[#D3BFA6]">
           {loading ? (
@@ -136,7 +158,7 @@ const Navbar = ({ openMenu, setOpenMenu }) => {
                 <button
                   onClick={() => handleCategoryClick(cat)}
                   className="w-full text-left py-2 px-3 text-sm font-medium text-[#654321] border-[#E8D9C4]
-                  hover:bg-[#FFEED4] hover:text-[#654a21] rounded-md transition-all duration-200"
+                  hover:bg-[#FFEED4] hover:text-[#654a21] rounded-md transition-all duration-200"
                 >
                   {cat.name || cat.title}
                 </button>

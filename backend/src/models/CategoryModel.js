@@ -3,11 +3,11 @@ import mongoose from "mongoose";
 const categorySchema = new mongoose.Schema(
   {
     name: { type: String, required: true, unique: true },
-    slug: { type: String, required: true, unique: true }, // ví dụ: "sofa-da"
+    slug: { type: String, required: true, unique: true },
     parent: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Category",
-      default: null, // nếu là danh mục gốc
+      default: null,
     },
     children: [{ type: mongoose.Schema.Types.ObjectId, ref: "Category" }],
   },
