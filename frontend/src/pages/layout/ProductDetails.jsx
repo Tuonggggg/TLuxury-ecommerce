@@ -16,6 +16,8 @@ import {
   Package
 } from "lucide-react"
 import api from "@/lib/axios"
+import { toast } from "sonner"
+import RelatedProductCard from "@/components/RelatedProductCard"
 
 const ProductDetailsPage = () => {
   const { id } = useParams()
@@ -24,6 +26,7 @@ const ProductDetailsPage = () => {
   const [loading, setLoading] = useState(true)
   const [selectedImage, setSelectedImage] = useState(0)
   const [quantity, setQuantity] = useState(1)
+  const [isAddingToCart, setIsAddingToCart] = useState(false)
   const [activeTab, setActiveTab] = useState("description")
   const [relatedProducts, setRelatedProducts] = useState([])
   const [loadingRelated, setLoadingRelated] = useState(false)
@@ -33,12 +36,13 @@ const ProductDetailsPage = () => {
       try {
         const { data } = await api.get(`/products/${id}`)
         setProduct(data)
-        
+
         // Fetch related products
         if (data.category?._id) {
           setLoadingRelated(true)
           try {
-            const { data: related } = await api.get(`/products?category=${data.category._id}&limit=6`)
+            const resRelated = await api.get(`/products?category=${data.category._id}&limit=6`)
+            const related = resRelated.data.products || resRelated.data || []
             setRelatedProducts(related.filter(p => p._id !== data._id).slice(0, 6))
           } catch (err) {
             console.error("Lỗi khi lấy sản phẩm tương tự:", err)
@@ -55,11 +59,69 @@ const ProductDetailsPage = () => {
     fetchProduct()
   }, [id])
 
+  // ------------------------- HÀM THÊM VÀO GIỎ HÀNG (CỐT LÕI) -------------------------
+  const handleAddToCart = async (checkoutAfter = false) => {
+    if (quantity <= 0) {
+      toast.error("Vui lòng chọn số lượng hợp lệ.");
+      return;
+    }
+    if (quantity > product.stock) {
+      toast.warning(`Số lượng vượt quá tồn kho. Hiện còn ${product.stock} sản phẩm.`);
+      return;
+    }
+
+    setIsAddingToCart(true);
+    try {
+      const payload = {
+        productId: product._id,
+        qty: quantity,
+      };
+
+      await api.post('/cart', payload);
+
+      const successMessage = checkoutAfter ? "Đã chuyển đến trang thanh toán!" : "Đã thêm vào giỏ hàng!";
+
+      toast.success(`${product.name}: ${successMessage}`, {
+        action: checkoutAfter ? undefined : {
+          label: "Xem giỏ",
+          onClick: () => navigate('/cart')
+        }
+      });
+
+      if (checkoutAfter) {
+        navigate('/cart/checkout'); // Chuyển thẳng đến thanh toán
+      }
+
+    } catch (error) {
+      let errorMessage = "Lỗi kết nối hoặc phiên đăng nhập đã hết hạn.";
+      if (error.response?.status === 401) {
+        errorMessage = "Vui lòng đăng nhập để thực hiện giao dịch.";
+      } else if (error.response?.data?.message) {
+        errorMessage = error.response.data.message;
+      }
+      toast.error("Thao tác thất bại.", { description: errorMessage });
+      console.error("Transaction error:", error);
+    } finally {
+      setIsAddingToCart(false);
+    }
+  }
+
+  // ------------------------- MOCK FUNCTIONS -------------------------
+  const handleToggleWishlist = () => {
+    toast.info("Tính năng Yêu thích đang được phát triển.");
+  }
+  const handleShare = () => {
+    toast.info("Link sản phẩm đã được sao chép!", { duration: 1500 });
+    navigator.clipboard.writeText(window.location.href);
+  }
+  // ------------------------------------------------------------------
+
   if (loading) return <div className="text-center py-20 text-gray-500">Đang tải dữ liệu...</div>
   if (!product) return <div className="text-center py-20 text-red-500">Không tìm thấy sản phẩm</div>
 
   const images = product.images?.length ? product.images : ["/no-image.png"]
-  const discountPrice = product.discount > 0 ? product.price - (product.price * product.discount) / 100 : product.price
+  const discountPrice = product.discount > 0 ? Math.round(product.price - (product.price * product.discount) / 100) : product.price
+  const isOutOfStock = product.stock === 0;
 
   return (
     <div className="min-h-screen bg-white">
@@ -71,7 +133,7 @@ const ProductDetailsPage = () => {
               Trang chủ
             </span>
             <span>/</span>
-            <span className="hover:text-gray-900 cursor-pointer transition-colors">
+            <span onClick={() => navigate(`/category/${product.category?.slug}`)} className="hover:text-gray-900 cursor-pointer transition-colors">
               {product.category?.name || "Danh mục"}
             </span>
             <span>/</span>
@@ -119,9 +181,8 @@ const ProductDetailsPage = () => {
                 <button
                   key={idx}
                   onClick={() => setSelectedImage(idx)}
-                  className={`aspect-square rounded-lg overflow-hidden border transition-all ${
-                    selectedImage === idx ? "border-gray-900" : "border-gray-200 hover:border-gray-400"
-                  }`}
+                  className={`aspect-square rounded-lg overflow-hidden border transition-all ${selectedImage === idx ? "border-gray-900" : "border-gray-200 hover:border-gray-400"
+                    }`}
                 >
                   <img src={img} alt={`Ảnh ${idx + 1}`} className="w-full h-full object-cover" />
                 </button>
@@ -134,13 +195,12 @@ const ProductDetailsPage = () => {
             <div>
               <div className="text-sm text-gray-500 mb-2">{product.category?.name || "Danh mục"}</div>
               <h1 className="text-3xl md:text-4xl font-semibold text-gray-900 mb-3">{product.name}</h1>
-              <p className="text-gray-600 leading-relaxed">{product.description}</p>
             </div>
 
             {/* Price */}
             <div className="py-6 border-y border-gray-200">
               <div className="flex items-baseline gap-3">
-                <span className="text-4xl font-semibold text-gray-900">
+                <span className="text-4xl font-semibold text-red-600">
                   {discountPrice.toLocaleString()}₫
                 </span>
                 {product.discount > 0 && (
@@ -181,6 +241,7 @@ const ProductDetailsPage = () => {
                 <button
                   onClick={() => setQuantity(Math.max(1, quantity - 1))}
                   className="w-10 h-10 flex items-center justify-center hover:bg-gray-50 transition-colors"
+                  disabled={quantity <= 1 || isOutOfStock}
                 >
                   <Minus className="h-4 w-4" />
                 </button>
@@ -188,6 +249,7 @@ const ProductDetailsPage = () => {
                 <button
                   onClick={() => setQuantity(Math.min(product.stock, quantity + 1))}
                   className="w-10 h-10 flex items-center justify-center hover:bg-gray-50 transition-colors"
+                  disabled={quantity >= product.stock || isOutOfStock}
                 >
                   <Plus className="h-4 w-4" />
                 </button>
@@ -197,18 +259,36 @@ const ProductDetailsPage = () => {
             {/* Action Buttons */}
             <div className="space-y-3 pt-4">
               <div className="flex gap-3">
-                <Button className="flex-1 h-12 bg-gray-900 hover:bg-gray-800 text-white">
+                <Button
+                  className="flex-1 h-12 bg-gray-900 hover:bg-gray-800 text-white"
+                  onClick={() => handleAddToCart(false)}
+                  disabled={isOutOfStock || isAddingToCart}
+                >
                   <ShoppingCart className="h-5 w-5 mr-2" />
-                  Thêm vào giỏ hàng
+                  {isAddingToCart ? 'Đang thêm...' : 'Thêm vào giỏ hàng'}
                 </Button>
-                <Button variant="outline" size="icon" className="h-12 w-12 border-gray-300 hover:bg-gray-50">
+                <Button
+                  variant="outline"
+                  size="icon"
+                  className="h-12 w-12 border-gray-300 hover:bg-gray-50"
+                  onClick={handleToggleWishlist}
+                >
                   <Heart className="h-5 w-5" />
                 </Button>
-                <Button variant="outline" size="icon" className="h-12 w-12 border-gray-300 hover:bg-gray-50">
+                <Button
+                  variant="outline"
+                  size="icon"
+                  className="h-12 w-12 border-gray-300 hover:bg-gray-50"
+                  onClick={handleShare}
+                >
                   <Share2 className="h-5 w-5" />
                 </Button>
               </div>
-              <Button className="w-full h-12 bg-blue-600 hover:bg-blue-700 text-white">
+              <Button
+                className="w-full h-12 bg-blue-600 hover:bg-blue-700 text-white"
+                onClick={() => handleAddToCart(true)} // Mua ngay = Thêm vào giỏ hàng + chuyển hướng
+                disabled={isOutOfStock || isAddingToCart}
+              >
                 Mua ngay
               </Button>
             </div>
@@ -247,11 +327,10 @@ const ProductDetailsPage = () => {
               <button
                 key={tab}
                 onClick={() => setActiveTab(tab)}
-                className={`py-4 font-medium text-sm transition-colors ${
-                  activeTab === tab
-                    ? "text-gray-900 border-b-2 border-gray-900"
-                    : "text-gray-500 hover:text-gray-900"
-                }`}
+                className={`py-4 font-medium text-sm transition-colors ${activeTab === tab
+                  ? "text-gray-900 border-b-2 border-gray-900"
+                  : "text-gray-500 hover:text-gray-900"
+                  }`}
               >
                 {tab === "description" ? "Mô tả sản phẩm" : "Đánh giá"}
               </button>
@@ -273,74 +352,37 @@ const ProductDetailsPage = () => {
 
         {/* Related Products */}
         {relatedProducts.length > 0 && (
-          <div>
-            <div className="flex items-center justify-between mb-8">
-              <h2 className="text-2xl font-semibold text-gray-900">Sản phẩm tương tự</h2>
-              <Button 
-                variant="ghost" 
-                onClick={() => navigate(`/?category=${product.category._id}`)}
-                className="text-sm"
+          <div className="py-8 border-t border-gray-200 mt-10"> {/* Thêm padding và đường viền để phân tách */}
+            {/* HEADER */}
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-2xl font-bold text-gray-900">Sản phẩm tương tự</h2>
+              <Button
+                variant="ghost"
+                onClick={() => navigate(`/?category=${product.category?._id}`)}
+                className="text-blue-600 hover:text-blue-700 text-base font-medium transition-colors"
               >
                 Xem tất cả
-                <ChevronRight className="h-4 w-4 ml-1" />
+                <ChevronRight className="h-5 w-5 ml-1" />
               </Button>
             </div>
 
+            {/* NỘI DUNG DANH SÁCH */}
             {loadingRelated ? (
-              <div className="text-center py-12 text-gray-500">Đang tải...</div>
+              <div className="text-center py-12 text-gray-500">
+                <svg className="animate-spin h-6 w-6 text-blue-500 mx-auto mb-2" viewBox="0 0 24 24">...</svg>
+                Đang tải sản phẩm tương tự...
+              </div>
             ) : (
-              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-4">
-                {relatedProducts.map((relatedProduct) => {
-                  const relatedDiscountPrice = relatedProduct.discount > 0 
-                    ? relatedProduct.price - (relatedProduct.price * relatedProduct.discount) / 100 
-                    : relatedProduct.price
-                  const relatedImage = relatedProduct.images?.[0] || "/no-image.png"
-
-                  return (
-                    <Card 
-                      key={relatedProduct._id} 
-                      className="group cursor-pointer hover:shadow-md transition-shadow border border-gray-200"
-                      onClick={() => {
-                        navigate(`/products/${relatedProduct._id}`)
-                        window.scrollTo(0, 0)
-                      }}
-                    >
-                      <CardContent className="p-0">
-                        <div className="relative aspect-square overflow-hidden bg-gray-50">
-                          <img
-                            src={relatedImage}
-                            alt={relatedProduct.name}
-                            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                          />
-                          {relatedProduct.discount > 0 && (
-                            <div className="absolute top-2 right-2 bg-red-600 text-white px-2 py-1 rounded text-xs font-medium">
-                              -{relatedProduct.discount}%
-                            </div>
-                          )}
-                        </div>
-                        
-                        <div className="p-3 space-y-2">
-                          <h3 className="font-medium text-sm text-gray-900 line-clamp-2 group-hover:text-blue-600 transition-colors">
-                            {relatedProduct.name}
-                          </h3>
-                          
-                          <div className="space-y-1">
-                            <div className="flex items-baseline gap-2">
-                              <span className="text-lg font-semibold text-gray-900">
-                                {relatedDiscountPrice.toLocaleString()}₫
-                              </span>
-                            </div>
-                            {relatedProduct.discount > 0 && (
-                              <span className="text-xs text-gray-400 line-through">
-                                {relatedProduct.price.toLocaleString()}₫
-                              </span>
-                            )}
-                          </div>
-                        </div>
-                      </CardContent>
-                    </Card>
-                  )
-                })}
+              <div className="grid grid-cols-2 gap-4 
+                    sm:grid-cols-3 md:grid-cols-4 
+                    lg:grid-cols-5 xl:grid-cols-6 lg:gap-6">
+                {relatedProducts.map((relatedProduct) => (
+                  // Gọi component mới thay vì render Card trực tiếp
+                  <RelatedProductCard
+                    key={relatedProduct._id}
+                    product={relatedProduct}
+                  />
+                ))}
               </div>
             )}
           </div>

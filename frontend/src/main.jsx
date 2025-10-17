@@ -1,4 +1,4 @@
-// src/main.jsx (Đã thêm Context và Router)
+// src/main.jsx (ĐÃ SỬA LỖI CONTEXT)
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { BrowserRouter } from 'react-router-dom'; // 🔑 Import BrowserRouter
@@ -8,12 +8,12 @@ import { AuthProvider } from './context/AuthProvider.jsx'; // ✅ Đúng
 
 createRoot(document.getElementById('root')).render(
   <StrictMode>
-    {/* 🔑 Bọc AuthProvider ở ngoài cùng để quản lý trạng thái toàn cục */}
-    <AuthProvider>
-      {/* 🔑 Bọc BrowserRouter bên trong để Context có thể sử dụng các hook của Router nếu cần */}
-      <BrowserRouter> 
+    {/* 1. BỌC BẰNG ROUTER TRƯỚC (BẮT BUỘC) */}
+    <BrowserRouter>
+      {/* 2. BỌC BẰNG CONTEXT SAU (AuthProvider bây giờ có thể dùng useNavigate) */}
+      <AuthProvider>
         <App />
-      </BrowserRouter>
-    </AuthProvider>
+      </AuthProvider>
+    </BrowserRouter>
   </StrictMode>,
 );

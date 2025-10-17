@@ -10,7 +10,6 @@ function arrayLimit(val) {
 const productSchema = new mongoose.Schema(
   {
     name: { type: String, required: true, trim: true },
-    // Trường tên không dấu
     name_no_sign: {
       type: String,
       required: true,
@@ -32,8 +31,8 @@ const productSchema = new mongoose.Schema(
     size: { type: String },
     material: { type: String },
     origin: { type: String },
-    price: { type: Number, required: true },
-    discount: { type: Number, default: 0 },
+    price: { type: Number, required: true, min: 0 }, // Thêm min: 0
+    discount: { type: Number, default: 0, min: 0, max: 100 }, // ✅ Đảm bảo discount từ 0 đến 100
     stock: { type: Number, default: 0 },
     category: {
       type: mongoose.Schema.Types.ObjectId,
@@ -43,23 +42,45 @@ const productSchema = new mongoose.Schema(
     rating: { type: Number, default: 0 },
     numReviews: { type: Number, default: 0 },
   },
-  { timestamps: true }
+  {
+    timestamps: true,
+    // 🔑 Cấu hình quan trọng: Bật virtuals khi chuyển đổi sang JSON/Object
+    toJSON: { virtuals: true },
+    toObject: { virtuals: true },
+  }
 );
 
-// PRE-SAVE HOOK: Tự động cập nhật name_no_sign khi tạo mới hoặc cập nhật trường 'name'
+// =======================================================
+// ✅ VIRTUALS: TÍNH TOÁN GIÁ CUỐI CÙNG (FINAL PRICE)
+// =======================================================
+
+/**
+ * Tự động tính giá sau giảm (finalPrice) dựa trên price và discount.
+ * Giá này KHÔNG được lưu trong DB, chỉ được tính khi truy vấn.
+ */
+productSchema.virtual("finalPrice").get(function () {
+  if (this.discount > 0) {
+    // Tính toán và làm tròn giá sau giảm
+    return Math.round(this.price * (1 - this.discount / 100));
+  }
+  // Trả về giá gốc nếu không có giảm giá
+  return this.price;
+});
+
+// =======================================================
+// HOOKS TỰ ĐỘNG CẬP NHẬT TÊN KHÔNG DẤU (Giữ nguyên)
+// =======================================================
+
 productSchema.pre("save", function (next) {
   if (this.isModified("name") || this.isNew) {
-    // ✅ SỬ DỤNG HÀM ĐÃ IMPORT
     this.name_no_sign = removeVietnameseSigns(this.name);
   }
   next();
 });
 
-// PRE-UPDATE HOOK: Xử lý cập nhật findOneAndUpdate
 productSchema.pre("findOneAndUpdate", function (next) {
   const update = this.getUpdate();
   if (update.name) {
-    // ✅ SỬ DỤNG HÀM ĐÃ IMPORT
     update.name_no_sign = removeVietnameseSigns(update.name);
   }
   next();

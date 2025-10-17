@@ -82,12 +82,12 @@ const CheckoutPage = () => {
   }, [navigate]);
 
   // ------------------ Tính tổng tiền ------------------
-  const shippingFee = 50000;
+  const shippingFee = "Miễn phí";
   const subTotal = cartItems.reduce((acc, item) => acc + item.price * item.qty, 0);
 
   const discountAmount = discountInfo.isValid ? discountInfo.amount : 0;
   const finalSubTotal = subTotal - discountAmount;
-  const total = finalSubTotal + shippingFee;
+  const total = finalSubTotal;
 
 
   // ------------------ Xử lý Áp dụng Mã giảm giá ------------------
@@ -304,7 +304,7 @@ const CheckoutPage = () => {
 
           <div className="flex justify-between">
             <span>Phí vận chuyển</span>
-            <span>{shippingFee.toLocaleString()}₫</span>
+            <span>{shippingFee.toLocaleString()} </span>
           </div>
           <Separator />
           <div className="flex justify-between text-lg font-bold">

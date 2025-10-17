@@ -9,12 +9,11 @@ import {
   PaginationNext,
   PaginationPrevious,
 } from "@/components/ui/pagination";
-import { Link } from "react-router-dom"; // Giữ lại useNavigate để khắc phục lỗi.
+import { Link } from "react-router-dom";
 import api from "@/lib/axios";
 import { toast } from "sonner"; 
 
 const CartPage = () => {
-  // const navigate = useNavigate(); // 🚨 Đã XÓA dòng này vì không dùng đến
   
   const [cartItems, setCartItems] = useState([]);
   const [loading, setLoading] = useState(false);

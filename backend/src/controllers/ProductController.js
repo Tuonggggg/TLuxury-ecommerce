@@ -3,29 +3,21 @@ import Product from "../models/ProductModel.js";
 import Category from "../models/CategoryModel.js";
 
 // =========================================================
-// HÀM TIỆN ÍCH: LOẠI BỎ DẤU TIẾNG VIỆT
+// HÀM LOẠI BỎ DẤU TIẾNG VIỆT (Giữ nguyên)
+// ...
 // =========================================================
+
 const removeVietnameseSigns = (str) => {
   if (!str) return "";
-  str = str.toLowerCase();
-  str = str.replace(/à|á|ạ|ả|ã|â|ầ|ấ|ậ|ẩ|ẫ|ă|ằ|ắ|ặ|ẳ|ẵ/g, "a");
-  str = str.replace(/è|é|ẹ|ẻ|ẽ|ê|ề|ế|ệ|ể|ễ/g, "e");
-  str = str.replace(/ì|í|ị|ỉ|ĩ/g, "i");
-  str = str.replace(/ò|ó|ọ|ỏ|õ|ô|ồ|ố|ộ|ổ|ỗ|ơ|ờ|ớ|ợ|ở|ỡ/g, "o");
-  str = str.replace(/ù|ú|ụ|ủ|ũ|ư|ừ|ứ|ự|ử|ữ/g, "u");
-  str = str.replace(/ỳ|ý|ỵ|ỷ|ỹ/g, "y");
-  str = str.replace(/đ/g, "d");
-  str = str.replace(/À|Á|Ạ|Ả|Ã|Â|Ầ|Ấ|Ậ|Ẩ|Ẫ|Ă|Ằ|Ắ|Ặ|Ẳ|Ẵ/g, "A");
-  str = str.replace(/È|É|Ẹ|Ẻ|Ẽ|Ê|Ề|Ế|Ệ|Ể|Ễ/g, "E");
-  str = str.replace(/Ì|Í|Ị|Ỉ|Ĩ/g, "I");
-  str = str.replace(/Ò|Ó|Ọ|Ỏ|Õ|Ô|Ồ|Ố|Ộ|Ổ|Ỗ|Ơ|Ờ|Ớ|Ợ|Ở|Ỡ/g, "O");
-  str = str.replace(/Ù|Ú|Ụ|Ủ|Ũ|Ư|Ừ|Ứ|Ự|Ử|Ữ/g, "U");
-  str = str.replace(/Ỳ|Ý|Ỵ|Ỷ|Ỹ/g, "Y");
-  str = str.replace(/Đ/g, "D");
-  return str.trim();
+  return str
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/đ/g, "d")
+    .replace(/Đ/g, "D")
+    .toLowerCase()
+    .trim();
 };
 
-// Hàm lấy tất cả categoryId con recursively (Giữ nguyên)
 async function getAllCategoryIds(parentId) {
   const ids = [parentId];
   const children = await Category.find({ parent: parentId });
@@ -36,7 +28,9 @@ async function getAllCategoryIds(parentId) {
   return ids;
 }
 
-// Lấy tất cả sản phẩm (getProducts)
+// =========================================================
+// GET PRODUCTS (Giữ nguyên)
+// =========================================================
 export const getProducts = async (req, res) => {
   try {
     const {
@@ -51,18 +45,14 @@ export const getProducts = async (req, res) => {
       page = 1,
       limit = 10,
     } = req.query;
-    let query = {};
 
-    // 1. Xử lý Tìm kiếm (SEARCH - ĐÃ SỬA LỖI KHÔNG DẤU)
-    // Tìm kiếm trên trường name_no_sign bằng chuỗi đã loại bỏ dấu (Front-end search value)
+    const query = {};
+
     if (search) {
-      // Loại bỏ dấu khỏi chuỗi tìm kiếm của người dùng
       const safeSearch = removeVietnameseSigns(search);
-      // Tìm kiếm trên trường name_no_sign không phân biệt hoa/thường (i)
       query.name_no_sign = { $regex: safeSearch, $options: "i" };
     }
 
-    // 2. Xử lý Lọc theo Category
     if (category) {
       const cat = await Category.findOne({ slug: category });
       if (cat) {
@@ -71,45 +61,30 @@ export const getProducts = async (req, res) => {
       }
     }
 
-    // 3. Xử lý Lọc đơn giản
     if (brand) query.brand = brand;
     if (status) query.status = status;
 
-    // 4. Xử lý Lọc theo Giá (PRICE - ĐÃ TỐI ƯU HÓA)
     if (minPrice || maxPrice) {
       query.price = {};
-      const min = Number(minPrice);
-      const max = Number(maxPrice);
-
-      if (!isNaN(min) && min >= 0) query.price.$gte = min;
-      if (!isNaN(max) && max > 0) query.price.$lte = max;
-
-      // Xóa query.price nếu không có điều kiện nào được áp dụng
-      if (Object.keys(query.price).length === 0) {
-        delete query.price;
-      }
+      if (minPrice) query.price.$gte = +minPrice;
+      if (maxPrice) query.price.$lte = +maxPrice;
     }
 
-    // 5. Xử lý Phân trang và Sắp xếp
     const sortOption = sortBy
       ? { [sortBy]: order === "asc" ? 1 : -1 }
       : { createdAt: -1 };
-    const pageSize = Number(limit) > 0 ? Number(limit) : 10;
-    const pageNum = Number(page) > 0 ? Number(page) : 1;
-    const skip = (pageNum - 1) * pageSize;
 
     const total = await Product.countDocuments(query);
-
     const products = await Product.find(query)
       .populate("category", "name slug")
       .sort(sortOption)
-      .skip(skip)
-      .limit(pageSize);
+      .skip((page - 1) * limit)
+      .limit(+limit);
 
     res.json({
       total,
-      page: pageNum,
-      totalPages: Math.ceil(total / pageSize),
+      page: +page,
+      totalPages: Math.ceil(total / limit),
       products,
     });
   } catch (error) {
@@ -117,7 +92,9 @@ export const getProducts = async (req, res) => {
   }
 };
 
-// Lấy 1 sản phẩm
+// =========================================================
+// GET PRODUCT BY ID (Giữ nguyên)
+// =========================================================
 export const getProductById = async (req, res) => {
   try {
     const product = await Product.findById(req.params.id).populate(
@@ -132,9 +109,11 @@ export const getProductById = async (req, res) => {
   }
 };
 
-// Tạo sản phẩm mới (ĐÃ SỬA: LƯU TRƯỜNG name_no_sign)
+// =========================================================
+// CREATE PRODUCT (Giữ nguyên)
+// =========================================================
 export const createProduct = async (req, res) => {
-  console.log("🚀 ~ createProduct ~ req:", req.body, req.file, req.files);
+  console.log("📸 Uploaded files raw:", req.files);
   try {
     const {
       name,
@@ -151,66 +130,70 @@ export const createProduct = async (req, res) => {
       discount,
     } = req.body;
 
-    if (!name)
-      return res.status(400).json({ message: "Tên sản phẩm là bắt buộc" });
-    if (!price)
-      return res.status(400).json({ message: "Giá sản phẩm là bắt buộc" });
+    if (!name) return res.status(400).json({ message: "Thiếu tên sản phẩm" });
+    if (!price) return res.status(400).json({ message: "Thiếu giá sản phẩm" });
     if (!category)
-      return res.status(400).json({ message: "Category là bắt buộc" }); // Category có thể là ObjectId hoặc slug
+      return res.status(400).json({ message: "Thiếu danh mục sản phẩm" }); // Tìm category
 
-    let cat = null;
-    if (mongoose.Types.ObjectId.isValid(category)) {
-      cat = await Category.findById(category);
-    }
-    if (!cat) {
-      cat = await Category.findOne({ slug: category });
-    }
-    if (!cat) return res.status(400).json({ message: "Category không hợp lệ" }); // Tự sinh slug nếu không có
+    let cat = mongoose.Types.ObjectId.isValid(category)
+      ? await Category.findById(category)
+      : await Category.findOne({ slug: category });
+    if (!cat) return res.status(400).json({ message: "Category không hợp lệ" }); // Sinh slug
 
     const finalSlug = slug || name.toLowerCase().replace(/\s+/g, "-");
+    const slugExists = await Product.findOne({ slug: finalSlug });
+    if (slugExists)
+      return res
+        .status(400)
+        .json({ message: "Slug đã tồn tại. Chọn tên khác." }); // Xử lý ảnh
 
-    // LƯU TRƯỜNG name_no_sign BẰNG CÁCH LOẠI BỎ DẤU TỪ TRƯỜNG name
-    const nameNoSign = removeVietnameseSigns(name); // Xử lý ảnh upload hoặc URL sẵn có
+    let images = [];
+    if (Array.isArray(req.files) && req.files.length > 0) {
+      images = req.files.map((f) => f.path);
+    } // 4. ✅ Xử lý Discount
 
-    const images = [];
-    if (req.file) images.push(req.file.path); // single file
-    if (req.files) images.push(...req.files.map((f) => f.path)); // multiple files
-    if (req.body.images) images.push(...req.body.images); // URL có sẵn
+    const discountValue = Number(discount);
+    const safeDiscount = Math.max(
+      0,
+      Math.min(100, isNaN(discountValue) ? 0 : discountValue)
+    ); // Tạo product
 
     const newProduct = new Product({
       name,
-      name_no_sign: nameNoSign, // 🚨 LƯU TRƯỜNG MỚI ĐỂ TÌM KIẾM
+      name_no_sign: removeVietnameseSigns(name),
       slug: finalSlug,
       price,
       description,
       category: cat._id,
-      stock,
-      brand,
-      status,
-      size,
-      material,
-      origin,
-      discount,
+      stock: stock || 0,
+      brand: brand || "",
+      status: status || "còn hàng",
+      size: size || "",
+      material: material || "",
+      origin: origin || "",
+      discount: safeDiscount,
       images,
     });
 
-    const savedProduct = await newProduct.save();
-    const populatedProduct = await savedProduct.populate(
-      "category",
-      "name slug"
-    );
+    const saved = await newProduct.save();
+    const populated = await saved.populate("category", "name slug");
 
-    res.status(201).json(populatedProduct);
+    res.status(201).json(populated);
   } catch (error) {
-    res.status(400).json({ message: error.message });
+    console.error("❌ [createProduct] Lỗi khi tạo sản phẩm:", error);
+    res
+      .status(500)
+      .json({ message: error.message || "Lỗi server khi tạo sản phẩm" });
   }
 };
 
-// Cập nhật sản phẩm (ĐÃ SỬA: CẬP NHẬT TRƯỜNG name_no_sign)
+// =========================================================
+// UPDATE PRODUCT (Đã Hoàn Thiện Xử lý Lỗi)
+// =========================================================
 export const updateProduct = async (req, res) => {
+  console.log("🚀 ~ updateProduct ~ body:", req.body);
   try {
-    const updateData = { ...req.body }; // Category nếu gửi slug hoặc ObjectId
-
+    const updateData = { ...req.body }; // 1. Xử lý Category
     if (updateData.category) {
       const cat = mongoose.Types.ObjectId.isValid(updateData.category)
         ? await Category.findById(updateData.category)
@@ -218,43 +201,62 @@ export const updateProduct = async (req, res) => {
       if (!cat)
         return res.status(400).json({ message: "Category không hợp lệ" });
       updateData.category = cat._id;
-    } // Tự sinh slug nếu không có
+    } // 2. Xử lý Name/Slug/Name_no_sign
 
-    if (updateData.name && !updateData.slug) {
-      updateData.slug = updateData.name.toLowerCase().replace(/\s+/g, "-");
-    }
-
-    // 🚨 THÊM LOGIC CẬP NHẬT name_no_sign
     if (updateData.name) {
-      updateData.name_no_sign = removeVietnameseSigns(updateData.name);
-    } // Xử lý ảnh upload hoặc URL
+      updateData.slug =
+        updateData.slug || updateData.name.toLowerCase().replace(/\s+/g, "-");
+    } // 3. ✅ Xử lý Discount (Ép kiểu trước khi lưu vào updateData)
 
-    const images = [];
-    if (req.file) images.push(req.file.path);
-    if (req.files) images.push(...req.files.map((f) => f.path));
-    if (req.body.images) images.push(...req.body.images);
-    if (images.length > 0) updateData.images = images;
+    if (updateData.discount !== undefined) {
+      const discountValue = Number(updateData.discount);
+      updateData.discount = Math.max(
+        0,
+        Math.min(100, isNaN(discountValue) ? 0 : discountValue)
+      );
+    } // 4. Xử lý Ảnh Cloudinary
 
-    const updatedProduct = await Product.findByIdAndUpdate(
-      req.params.id,
-      updateData,
-      { new: true }
-    ).populate("category", "name slug");
+    let images = [];
+    if (req.files && req.files.length > 0) {
+      images = req.files.map((f) => f.path);
+    }
+    if (req.body.images) {
+      const oldImages = Array.isArray(req.body.images)
+        ? req.body.images
+        : [req.body.images];
+      images.push(...oldImages);
+    }
+    if (images.length > 0) updateData.images = images; // 5. Thực hiện cập nhật
 
-    if (!updatedProduct)
+    const updated = await Product.findByIdAndUpdate(req.params.id, updateData, {
+      new: true,
+      runValidators: true, // Quan trọng: Chạy validators
+    }).populate("category", "name slug");
+
+    if (!updated)
       return res.status(404).json({ message: "Không tìm thấy sản phẩm" });
 
-    res.json(updatedProduct);
+    res.json(updated);
   } catch (error) {
-    res.status(400).json({ message: error.message });
+    console.error("❌ [updateProduct] Lỗi cập nhật chi tiết:", error); // ✅ Xử lý lỗi Mongoose Validation
+
+    if (error.name === "ValidationError") {
+      const messages = Object.values(error.errors).map((err) => err.message); // Trả về lỗi 400 kèm thông báo chi tiết
+      return res.status(400).json({ message: messages.join(", ") });
+    } // Xử lý lỗi chung khác
+    res
+      .status(400)
+      .json({ message: error.message || "Lỗi cập nhật không xác định" });
   }
 };
 
-// Xóa sản phẩm
+// =========================================================
+// DELETE PRODUCT (Giữ nguyên)
+// =========================================================
 export const deleteProduct = async (req, res) => {
   try {
-    const deletedProduct = await Product.findByIdAndDelete(req.params.id);
-    if (!deletedProduct)
+    const deleted = await Product.findByIdAndDelete(req.params.id);
+    if (!deleted)
       return res.status(404).json({ message: "Không tìm thấy sản phẩm" });
     res.json({ message: "Xóa sản phẩm thành công" });
   } catch (error) {

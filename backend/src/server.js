@@ -1,6 +1,8 @@
 import express from "express";
 import dotenv from "dotenv";
 import cors from "cors";
+dotenv.config();
+
 import helmet from "helmet";
 import rateLimit from "express-rate-limit";
 import mongoSanitize from "express-mongo-sanitize";
@@ -18,7 +20,6 @@ import userRoutes from "./routes/UserRouter.js";
 
 import { notFound, errorHandler } from "./middlewares/ErrorMiddleware.js";
 
-dotenv.config();
 
 connectDB();
 
