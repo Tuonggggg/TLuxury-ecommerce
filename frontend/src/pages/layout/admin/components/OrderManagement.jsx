@@ -1,30 +1,57 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import { Package2, Loader2, ListFilter, ChevronLeft, ChevronRight } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { toast } from 'sonner';
-import api from '@/lib/axios';
+import React, { useState, useEffect, useCallback } from "react";
+import {
+    Package2,
+    Loader2,
+    ChevronLeft,
+    ChevronRight,
+    Trash2,
+    Eye,
+    ChevronDown,
+    ChevronUp,
+} from "lucide-react";
+import { Button } from "@/components/ui/button";
+import {
+    Table,
+    TableBody,
+    TableCell,
+    TableHead,
+    TableHeader,
+    TableRow,
+} from "@/components/ui/table";
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from "@/components/ui/select";
+import { toast } from "sonner";
+import api from "@/lib/axios";
+import { Link } from "react-router-dom";
 
-// Định nghĩa các trạng thái Đơn hàng (Khớp với DB)
 const ORDER_STATUSES = [
-    { value: 'all', label: 'Tất cả' },
-    { value: 'pending', label: 'Chờ xác nhận', color: 'text-yellow-600 bg-yellow-100' },
-    { value: 'processing', label: 'Đang xử lý', color: 'text-blue-600 bg-blue-100' },
-    { value: 'shipping', label: 'Đang giao', color: 'text-purple-600 bg-purple-100' },
-    { value: 'delivered', label: 'Đã giao', color: 'text-green-600 bg-green-100' },
-    { value: 'cancelled', label: 'Đã hủy', color: 'text-red-600 bg-red-100' },
+    { value: "all", label: "Tất cả" },
+    { value: "pending", label: "Chờ xác nhận", color: "text-yellow-700 bg-yellow-50" },
+    { value: "processing", label: "Đang xử lý", color: "text-blue-700 bg-blue-50" },
+    { value: "shipped", label: "Đang giao", color: "text-purple-700 bg-purple-50" },
+    { value: "delivered", label: "Đã giao", color: "text-green-700 bg-green-50" },
+    { value: "cancelled", label: "Đã hủy", color: "text-red-700 bg-red-50" },
 ];
 
 const OrderManagement = () => {
     const [orders, setOrders] = useState([]);
     const [loading, setLoading] = useState(true);
-    const [selectedStatus, setSelectedStatus] = useState('all');
+    const [selectedStatus, setSelectedStatus] = useState("all");
     const [currentPage, setCurrentPage] = useState(1);
     const [totalPages, setTotalPages] = useState(1);
-    const itemsPerPage = 10; // Cố định 10 mục / trang
+    const [expandedRow, setExpandedRow] = useState(null);
+    const itemsPerPage = 10;
 
-    const formatCurrency = (num) => new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(num || 0);
+    const formatCurrency = (num) =>
+        new Intl.NumberFormat("vi-VN", {
+            style: "currency",
+            currency: "VND",
+        }).format(num || 0);
 
     const fetchOrders = useCallback(async () => {
         setLoading(true);
@@ -32,16 +59,14 @@ const OrderManagement = () => {
             const params = {
                 page: currentPage,
                 limit: itemsPerPage,
-                status: selectedStatus !== 'all' ? selectedStatus : undefined,
+                status: selectedStatus !== "all" ? selectedStatus : undefined,
             };
-            // Gọi route Admin GET /api/orders
-            const res = await api.get('/orders', { params }); 
-
+            const res = await api.get("/orders", { params });
             setOrders(res.data.orders || []);
             setTotalPages(res.data.totalPages || 1);
         } catch (error) {
-            console.error('Lỗi tải đơn hàng:', error);
-            toast.error(error.response?.data?.message || 'Không thể tải dữ liệu đơn hàng.');
+            console.log(error)
+            toast.error("Không thể tải dữ liệu đơn hàng.");
             setOrders([]);
         } finally {
             setLoading(false);
@@ -52,107 +77,265 @@ const OrderManagement = () => {
         fetchOrders();
     }, [fetchOrders]);
 
-    // Cập nhật trạng thái đơn hàng (PUT /api/orders/:id/status)
     const handleUpdateStatus = async (orderId, newStatus) => {
         try {
             await api.put(`/orders/${orderId}/status`, { status: newStatus });
-            toast.success(`Cập nhật trạng thái đơn hàng ${orderId.slice(0, 8)}... thành công!`);
-            fetchOrders(); // Tải lại danh sách
-        } catch (error) {
-            console.error('Lỗi cập nhật trạng thái:', error);
-            toast.error(error.response?.data?.message || 'Cập nhật thất bại.');
+            toast.success(`Cập nhật đơn hàng ${orderId.slice(0, 8)} thành công!`);
+            fetchOrders();
+        } catch {
+            toast.error("Cập nhật thất bại.");
         }
     };
 
-    const getStatusClass = (status) => {
-        return ORDER_STATUSES.find(s => s.value === status)?.color || 'text-gray-600 bg-gray-100';
+    const handleDeleteOrder = async (orderId) => {
+        if (!window.confirm("Xóa đơn hàng này?")) return;
+        try {
+            await api.delete(`/orders/${orderId}`);
+            toast.success("Đã xóa đơn hàng.");
+            if (expandedRow === orderId) setExpandedRow(null);
+            fetchOrders();
+        } catch {
+            toast.error("Xóa đơn hàng thất bại.");
+        }
     };
 
-    if (loading) {
-        return <div className="flex justify-center items-center p-12"><Loader2 className="w-6 h-6 animate-spin text-blue-600" /></div>;
-    }
+    const toggleRow = (id) => setExpandedRow(expandedRow === id ? null : id);
+
+    if (loading)
+        return (
+            <div className="flex justify-center items-center p-12">
+                <Loader2 className="w-6 h-6 animate-spin text-blue-600" />
+            </div>
+        );
 
     return (
         <div className="space-y-6">
-            <h2 className="text-2xl font-bold flex items-center gap-2">
+            <h2 className="text-2xl font-semibold flex items-center gap-2">
                 <Package2 className="w-6 h-6 text-blue-600" /> Quản lý Đơn hàng
             </h2>
 
-            <div className="bg-white p-6 rounded-lg shadow-sm border space-y-4">
-                <div className="flex items-center gap-4 border-b pb-4">
-                    <ListFilter className="w-5 h-5 text-gray-500" />
-                    <span className="text-sm font-medium text-gray-700">Lọc theo trạng thái:</span>
-                    <Select value={selectedStatus} onValueChange={(val) => { setSelectedStatus(val); setCurrentPage(1); }}>
-                        <SelectTrigger className="w-[180px]">
-                            <SelectValue placeholder="Tất cả trạng thái" />
+            <div className="bg-white p-5 rounded-xl border shadow-sm space-y-4">
+                {/* Filter */}
+                <div className="flex items-center gap-3">
+                    <Select value={selectedStatus} onValueChange={setSelectedStatus}>
+                        <SelectTrigger className="w-[200px]">
+                            <SelectValue placeholder="Lọc theo trạng thái" />
                         </SelectTrigger>
                         <SelectContent>
-                            {ORDER_STATUSES.map(s => (
-                                <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>
+                            {ORDER_STATUSES.map((s) => (
+                                <SelectItem key={s.value} value={s.value}>
+                                    {s.label}
+                                </SelectItem>
                             ))}
                         </SelectContent>
                     </Select>
+                    <Button variant="secondary" onClick={() => fetchOrders()}>
+                        Làm mới
+                    </Button>
                 </div>
 
+                {/* Table */}
                 {orders.length === 0 ? (
-                    <p className="text-center text-gray-500 p-12">Không tìm thấy đơn hàng nào.</p>
+                    <p className="text-center text-gray-500 p-12">Không có đơn hàng nào.</p>
                 ) : (
                     <div className="overflow-x-auto">
                         <Table>
                             <TableHeader>
-                                <TableRow>
+                                <TableRow className="bg-gray-50">
+                                    <TableHead></TableHead>
                                     <TableHead>Mã ĐH</TableHead>
                                     <TableHead>Khách hàng</TableHead>
+                                    <TableHead>SĐT</TableHead>
                                     <TableHead>Tổng tiền</TableHead>
                                     <TableHead>Trạng thái</TableHead>
-                                    <TableHead>P.Thức TT</TableHead>
+                                    <TableHead>Thanh toán</TableHead>
                                     <TableHead>Ngày tạo</TableHead>
                                     <TableHead className="text-right">Thao tác</TableHead>
                                 </TableRow>
                             </TableHeader>
                             <TableBody>
-                                {orders.map((order) => (
-                                    <TableRow key={order._id}>
-                                        <TableCell>{order._id.slice(0, 8)}...</TableCell>
-                                        <TableCell className="font-medium">{order.customerInfo?.name || order.user?.name || 'Khách'}</TableCell>
-                                        <TableCell>{formatCurrency(order.totalAmount)}</TableCell>
-                                        <TableCell>
-                                            <span className={`inline-flex px-3 py-1 text-xs font-semibold rounded-full ${getStatusClass(order.status)}`}>
-                                                {ORDER_STATUSES.find(s => s.value === order.status)?.label || order.status}
-                                            </span>
-                                        </TableCell>
-                                        <TableCell>{order.paymentMethod}</TableCell>
-                                        <TableCell>{new Date(order.createdAt).toLocaleDateString('vi-VN')}</TableCell>
-                                        <TableCell className="text-right">
-                                            <Select onValueChange={(val) => handleUpdateStatus(order._id, val)} defaultValue={order.status}>
-                                                <SelectTrigger className="w-[150px] ml-auto">
-                                                    <SelectValue placeholder="Cập nhật" />
-                                                </SelectTrigger>
-                                                <SelectContent>
-                                                    {ORDER_STATUSES.filter(s => s.value !== 'all' && s.value !== 'cancelled').map(s => (
-                                                        <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>
-                                                    ))}
-                                                    <SelectItem value="cancelled" className="text-red-500">Hủy đơn hàng</SelectItem>
-                                                </SelectContent>
-                                            </Select>
-                                        </TableCell>
-                                    </TableRow>
-                                ))}
+                                {orders.map((order) => {
+                                    // Lấy số điện thoại: ưu tiên user.phone, fallback shippingAddress.phone
+                                    const phone =
+                                        order.user?.phone || order.shippingAddress?.phone || "—";
+                                    return (
+                                        <React.Fragment key={order._id}>
+                                            <TableRow className="hover:bg-gray-50 transition-all">
+                                                <TableCell
+                                                    className="cursor-pointer"
+                                                    onClick={() => toggleRow(order._id)}
+                                                >
+                                                    {expandedRow === order._id ? (
+                                                        <ChevronUp className="w-4 h-4" />
+                                                    ) : (
+                                                        <ChevronDown className="w-4 h-4" />
+                                                    )}
+                                                </TableCell>
+                                                <TableCell>
+                                                    <Link
+                                                        to={`/order/${order._id}`}
+                                                        className="text-blue-600 hover:underline"
+                                                    >
+                                                        {order._id.slice(0, 8)}...
+                                                    </Link>
+                                                </TableCell>
+                                                <TableCell>{order.user?.username || "Khách"}</TableCell>
+
+                                                {/* Hiển thị SĐT, là link tel: nếu có */}
+                                                <TableCell>
+                                                    {phone !== "—" ? (
+                                                        <a href={`tel:${phone}`} className="text-sm text-blue-600 hover:underline">
+                                                            {phone}
+                                                        </a>
+                                                    ) : (
+                                                        <span className="text-gray-400">—</span>
+                                                    )}
+                                                </TableCell>
+
+                                                <TableCell>{formatCurrency(order.totalPrice)}</TableCell>
+                                                <TableCell>
+                                                    <span
+                                                        className={`px-3 py-1 text-xs font-medium rounded-full ${ORDER_STATUSES.find((s) => s.value === order.orderStatus)
+                                                                ?.color || "bg-gray-100 text-gray-700"
+                                                            }`}
+                                                    >
+                                                        {
+                                                            ORDER_STATUSES.find(
+                                                                (s) => s.value === order.orderStatus
+                                                            )?.label
+                                                        }
+                                                    </span>
+                                                </TableCell>
+                                                <TableCell>{order.paymentMethod}</TableCell>
+                                                <TableCell>
+                                                    {new Date(order.createdAt).toLocaleDateString("vi-VN")}
+                                                </TableCell>
+                                                <TableCell className="text-right flex items-center justify-end gap-2">
+                                                    <Select
+                                                        onValueChange={(v) => handleUpdateStatus(order._id, v)}
+                                                        defaultValue={order.orderStatus}
+                                                    >
+                                                        <SelectTrigger className="w-[140px]">
+                                                            <SelectValue placeholder="Cập nhật" />
+                                                        </SelectTrigger>
+                                                        <SelectContent>
+                                                            {ORDER_STATUSES.filter((s) => s.value !== "all").map(
+                                                                (s) => (
+                                                                    <SelectItem key={s.value} value={s.value}>
+                                                                        {s.label}
+                                                                    </SelectItem>
+                                                                )
+                                                            )}
+                                                        </SelectContent>
+                                                    </Select>
+                                                    <Button
+                                                        onClick={() => handleDeleteOrder(order._id)}
+                                                        variant="ghost"
+                                                        size="icon"
+                                                        className="text-red-500 hover:bg-red-50"
+                                                    >
+                                                        <Trash2 className="w-4 h-4" />
+                                                    </Button>
+                                                </TableCell>
+                                            </TableRow>
+
+                                            {/* Expanded row: thêm SĐT trong phần chi tiết */}
+                                            {expandedRow === order._id && (
+                                                <TableRow>
+                                                    <TableCell colSpan={9} className="bg-gray-50 p-4">
+                                                        <div className="space-y-3">
+                                                            {order.orderItems.map((item, i) => (
+                                                                <div
+                                                                    key={i}
+                                                                    className="flex items-center justify-between border rounded-lg bg-white p-2 shadow-sm"
+                                                                >
+                                                                    <div className="flex items-center gap-3">
+                                                                        <img
+                                                                            src={item.images?.[0] || "/images/no-image.jpg"}
+                                                                            alt={item.name}
+                                                                            className="w-10 h-10 rounded object-cover"
+                                                                        />
+                                                                        <div>
+                                                                            <p className="text-sm font-medium">{item.name}</p>
+                                                                            <p className="text-xs text-gray-500">
+                                                                                SL: {item.qty} x {formatCurrency(item.price)}
+                                                                            </p>
+                                                                        </div>
+                                                                    </div>
+                                                                    <span className="font-medium text-sm">
+                                                                        {formatCurrency(item.price * item.qty)}
+                                                                    </span>
+                                                                </div>
+                                                            ))}
+
+                                                            <div className="text-xs text-gray-600 border-t pt-2 space-y-1">
+                                                                <p>
+                                                                    <strong>Địa chỉ:</strong>{" "}
+                                                                    {order.shippingAddress?.address || "—"},{" "}
+                                                                    {order.shippingAddress?.city || "—"}
+                                                                </p>
+
+                                                                {/* Hiển thị SĐT chi tiết */}
+                                                                <p>
+                                                                    <strong>SĐT Khách:</strong>{" "}
+                                                                    {phone !== "—" ? (
+                                                                        <a href={`tel:${phone}`} className="text-blue-600 hover:underline">
+                                                                            {phone}
+                                                                        </a>
+                                                                    ) : (
+                                                                        <span className="text-gray-400">—</span>
+                                                                    )}
+                                                                </p>
+
+                                                                {order.note && (
+                                                                    <p className="italic text-orange-600">
+                                                                        <strong>Ghi chú:</strong> {order.note}
+                                                                    </p>
+                                                                )}
+                                                            </div>
+
+                                                            <Button
+                                                                asChild
+                                                                variant="link"
+                                                                size="sm"
+                                                                className="p-0 text-blue-600 hover:text-blue-700"
+                                                            >
+                                                                <Link to={`/order/${order._id}`}>
+                                                                    Xem chi tiết <Eye className="w-4 h-4 ml-1" />
+                                                                </Link>
+                                                            </Button>
+                                                        </div>
+                                                    </TableCell>
+                                                </TableRow>
+                                            )}
+                                        </React.Fragment>
+                                    );
+                                })}
                             </TableBody>
                         </Table>
                     </div>
                 )}
             </div>
 
-            {/* Pagination Controls */}
+            {/* Pagination */}
             {totalPages > 1 && (
-                <div className="flex justify-end space-x-4">
-                    <Button onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={currentPage === 1}>
-                        Trước
+                <div className="flex justify-center items-center gap-3">
+                    <Button
+                        onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                        disabled={currentPage === 1}
+                        variant="outline"
+                    >
+                        <ChevronLeft className="w-4 h-4 mr-1" /> Trước
                     </Button>
-                    <span className="text-sm flex items-center">Trang {currentPage} / {totalPages}</span>
-                    <Button onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))} disabled={currentPage === totalPages}>
-                        Sau
+                    <span className="text-sm">
+                        Trang {currentPage} / {totalPages}
+                    </span>
+                    <Button
+                        onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                        disabled={currentPage === totalPages}
+                        variant="outline"
+                    >
+                        Sau <ChevronRight className="w-4 h-4 ml-1" />
                     </Button>
                 </div>
             )}

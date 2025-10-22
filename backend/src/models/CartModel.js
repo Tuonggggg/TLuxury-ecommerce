@@ -16,12 +16,16 @@ const cartSchema = new mongoose.Schema(
           required: true,
         },
         qty: { type: Number, required: true, default: 1 },
-        price: { type: Number, required: true }, // lưu giá sản phẩm tại thời điểm thêm vào giỏ
+        price: { type: Number, required: true },
       },
     ],
   },
   { timestamps: true }
 );
 
-const Cart = mongoose.model("Cart", cartSchema);
+// ✅ FIX LỖI: Kiểm tra xem Model 'Cart' đã tồn tại chưa trước khi định nghĩa
+const Cart = mongoose.models.Cart
+  ? mongoose.model("Cart")
+  : mongoose.model("Cart", cartSchema);
+
 export default Cart;

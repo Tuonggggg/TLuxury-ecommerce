@@ -6,9 +6,16 @@ import ProductDetailsPage from "@/pages/layout/ProductDetails";
 import CartPage from "@/pages/layout/CartPage";
 import RegisterPage from "@/pages/layout/RegisterPage";
 import LoginForm from "@/pages/layout/LoginPage";
-import AuthRecoveryPage from "@/pages/layout/AuthRecoveryPage"; // Đổi tên biến import để dễ hiểu
+import AuthRecoveryPage from "@/pages/layout/AuthRecoveryPage";
 import AdminDashboard from "@/pages/layout/admin/AdminPage";
-import CheckoutPage from "@/pages/layout/CheckoutPage";
+import CheckoutPage from "@/pages/layout/OrderPage";
+import FlashSalePage from "@/pages/layout/FlashSalePage";
+
+// ✅ 1. IMPORT CÁC TRANG KẾT QUẢ THANH TOÁN
+import OrderSuccessPage from "@/pages/layout/OrderSuccessPage";
+import OrderFailedPage from "@/pages/layout/OrderFailedPage";
+import MyOrdersPage from "@/pages/layout/MyOrdersPage";
+import OrderDetailsPage from "@/pages/layout/OrderDetailsPage";
 
 export const routes = [
   {
@@ -27,6 +34,11 @@ export const routes = [
     isShowHeader: true,
   },
   {
+    path: "/flashsale",
+    page: FlashSalePage,
+    isShowHeader: true,
+  },
+  {
     path: "/product/:id",
     page: ProductDetailsPage,
     isShowHeader: true,
@@ -40,7 +52,30 @@ export const routes = [
     path: "/cart/checkout",
     page: CheckoutPage,
     isShowHeader: true,
+  }, // ✅ 2. THÊM ROUTE CHO TRANG THÀNH CÔNG (COD / VNPAY / MOMO)
+
+  {
+    path: "/order-success/:orderId",
+    page: OrderSuccessPage,
+    isShowHeader: true,
+  }, // ✅ 3. THÊM ROUTE CHO TRANG THẤT BẠI (VNPAY / MOMO)
+  {
+    path: "/my-orders",
+    page: MyOrdersPage,
+    isShowHeader: true,
   },
+  {
+    path: "/order/:id",
+    page: OrderDetailsPage,
+    isShowHeader: true,
+  },
+  // (Backend đã redirect về /payment/failed)
+  {
+    path: "/payment/failed",
+    page: OrderFailedPage,
+    isShowHeader: true,
+  }, // --- CÁC ROUTE XÁC THỰC ---
+
   {
     path: "/account/register",
     page: RegisterPage,
@@ -53,14 +88,15 @@ export const routes = [
   },
   {
     path: "/account/forgot-password",
-    page: AuthRecoveryPage, // Chức năng: Gửi Email (resetToken = undefined)
+    page: AuthRecoveryPage,
     isShowHeader: true,
   },
   {
     path: "/account/reset-password/:token",
-    page: AuthRecoveryPage, // Chức năng: Đặt lại Mật khẩu (resetToken = có giá trị)
+    page: AuthRecoveryPage,
     isShowHeader: true,
   },
+  // --- CÁC ROUTE ADMIN / NOT FOUND ---
   {
     path: "/admin/dashboard",
     page: AdminDashboard,

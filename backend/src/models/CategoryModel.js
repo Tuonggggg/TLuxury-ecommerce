@@ -4,6 +4,12 @@ const categorySchema = new mongoose.Schema(
   {
     name: { type: String, required: true, unique: true },
     slug: { type: String, required: true, unique: true },
+    
+    // =============================================
+    // ✅ THÊM DÒNG NÀY
+    image: { type: String, default: null },
+    // =============================================
+
     parent: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Category",
@@ -26,5 +32,8 @@ categorySchema.pre("save", async function (next) {
   next();
 });
 
-const Category = mongoose.model("Category", categorySchema);
+const Category = mongoose.models.Category
+    ? mongoose.model("Category")
+    : mongoose.model("Category", categorySchema);
+
 export default Category;

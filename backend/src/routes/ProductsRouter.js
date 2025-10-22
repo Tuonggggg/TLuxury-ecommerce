@@ -5,6 +5,8 @@ import {
   createProduct,
   updateProduct,
   deleteProduct,
+  getFlashSaleProducts,
+  getBrands
 } from "../controllers/ProductController.js";
 
 import { protect } from "../middlewares/AuthMiddleware.js";
@@ -18,10 +20,20 @@ import upload from "../middlewares/UploadMiddleware.js";
 
 const router = express.Router();
 
-// ✅ Public routes
+/* ============================================================
+   ⚡ FLASH SALE (phải đặt TRƯỚC :id để tránh nhầm route)
+   ============================================================ */
+router.get("/flashsale", getFlashSaleProducts); // ✅ thêm dòng này
+
+/* ============================================================
+   🔹 PUBLIC ROUTES
+   ============================================================ */
+router.get("/brands", getBrands);
 router.get("/", getProducts);
 router.get("/:id", getProductById);
-// ✅ Admin routes
+/* ============================================================
+   🔸 ADMIN ROUTES
+   ============================================================ */
 router.post(
   "/",
   protect,
@@ -46,7 +58,7 @@ router.put(
   "/:id",
   protect,
   authorizeRoles("admin"),
-  upload.array("images", 10), // ✅ update cũng nên chấp nhận nhiều ảnh
+  upload.array("images", 10),
   (req, res, next) => {
     if (!req.body.slug) req.body.slug = req.body.slug_text || "";
     next();

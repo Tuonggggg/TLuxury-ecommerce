@@ -3,7 +3,6 @@ import { useState, useEffect, useCallback } from "react";
 import api from "@/lib/axios";
 import { toast } from "sonner";
 
-// Định nghĩa các trạng thái sản phẩm trong DB để Front-end hiển thị
 const DB_STATUSES = [
   { value: "còn hàng", label: "Còn hàng" },
   { value: "hết hàng", label: "Hết hàng" },
@@ -11,25 +10,25 @@ const DB_STATUSES = [
 ];
 
 const useProducts = () => {
-  // State dữ liệu chính
   const [products, setProducts] = useState([]);
-  const [categories, setCategories] = useState([]); // State UI & Phân trang
+  const [categories, setCategories] = useState([]);
 
   const [loading, setLoading] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
-  const [itemsPerPage, setItemsPerPage] = useState(10); // State Lọc/Tìm kiếm
+  const [itemsPerPage, setItemsPerPage] = useState(10);
 
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("all");
-  const [selectedStatus, setSelectedStatus] = useState("all"); // State Sắp xếp
+  const [selectedStatus, setSelectedStatus] = useState("all");
 
   const [sortBy, setSortBy] = useState("createdAt");
-  const [sortOrder, setSortOrder] = useState("desc"); // State Tổng hợp
+  const [sortOrder, setSortOrder] = useState("desc");
 
   const [totalPages, setTotalPages] = useState(1);
-  const [totalProductsCount, setTotalProductsCount] = useState(0); // ------------------------- DATA FETCHING & LOGIC -------------------------
+  const [totalProductsCount, setTotalProductsCount] = useState(0);
 
+  // ------------------------- FETCH DATA -------------------------
   const fetchCategories = useCallback(async () => {
     try {
       const res = await api.get("/categories");
@@ -45,7 +44,7 @@ const useProducts = () => {
       console.error("Lỗi tải danh mục:", error);
       toast.error("Không thể tải danh mục.");
     }
-  }, []); // Lấy danh sách Products
+  }, []);
 
   const fetchProducts = useCallback(async () => {
     setLoading(true);
@@ -54,7 +53,7 @@ const useProducts = () => {
         search: searchTerm,
         category: selectedCategory !== "all" ? selectedCategory : undefined,
         status: selectedStatus !== "all" ? selectedStatus : undefined,
-        sortBy: sortBy,
+        sortBy,
         order: sortOrder === "asc" ? "asc" : "desc",
         page: currentPage,
         limit: itemsPerPage,
@@ -103,32 +102,45 @@ const useProducts = () => {
 
   useEffect(() => {
     fetchProducts();
-  }, [currentPage]); // ------------------------- CRUD ACTIONS (Đã Sửa Lỗi Ép Kiểu Discount) -------------------------
+  }, [currentPage]);
+
+  // ------------------------- CRUD ACTIONS -------------------------
 
   const createProduct = async (data, imageFiles) => {
     setIsSubmitting(true);
-    const formData = new FormData(); // APPEND DỮ LIỆU CƠ BẢN
+    const formData = new FormData();
 
+    // CƠ BẢN
     formData.append("name", data.name ?? "");
     formData.append("description", data.description ?? "");
     formData.append("category", data.category ?? "");
     formData.append("brand", data.brand ?? "");
     formData.append("price", data.price ?? 0);
     formData.append("stock", data.stock ?? 0);
-    formData.append("status", data.status ?? "còn hàng"); // ✅ SỬA LỖI: ÉP KIỂU MẠNH MẼ VÀ XỬ LÝ CHUỖI RỖNG
+    formData.append("status", data.status ?? "còn hàng");
+    formData.append("discount", Number(data.discount) || 0);
 
-    const numericDiscount = Number(data.discount) || 0;
-    formData.append("discount", numericDiscount); // APPEND ẢNH
+    // ✅ FLASH SALE
+    if (data.flashSale) {
+      formData.append(
+        "flashSale[isActive]",
+        data.flashSale.isActive ? "true" : "false"
+      );
+      formData.append("flashSale[salePrice]", data.flashSale.salePrice ?? 0);
+      formData.append("flashSale[startTime]", data.flashSale.startTime ?? "");
+      formData.append("flashSale[endTime]", data.flashSale.endTime ?? "");
+    }
 
+    // ẢNH
     Array.from(imageFiles || []).forEach((image) => {
       formData.append("images", image);
     });
 
     try {
-      const response = await api.post("/products", formData, {
+      const res = await api.post("/products", formData, {
         headers: { "Content-Type": "multipart/form-data" },
       });
-      toast.success(`Thêm sản phẩm ${response.data.name} thành công`);
+      toast.success(`✅ Đã thêm sản phẩm "${res.data.name}" thành công!`);
       fetchProducts();
       return true;
     } catch (error) {
@@ -142,7 +154,7 @@ const useProducts = () => {
 
   const updateProduct = async (productId, data, imageFiles, existingImages) => {
     setIsSubmitting(true);
-    const formData = new FormData(); // APPEND DỮ LIỆU CƠ BẢN
+    const formData = new FormData();
 
     formData.append("name", data.name ?? "");
     formData.append("description", data.description ?? "");
@@ -150,22 +162,31 @@ const useProducts = () => {
     formData.append("brand", data.brand ?? "");
     formData.append("price", data.price ?? 0);
     formData.append("stock", data.stock ?? 0);
-    formData.append("status", data.status ?? "còn hàng"); // ✅ SỬA LỖI: ÉP KIỂU MẠNH MẼ VÀ XỬ LÝ CHUỖI RỖNG
+    formData.append("status", data.status ?? "còn hàng");
+    formData.append("discount", Number(data.discount) || 0);
 
-    const numericDiscount = Number(data.discount) || 0;
-    formData.append("discount", numericDiscount); // APPEND ẢNH MỚI
+    // ✅ FLASH SALE
+    if (data.flashSale) {
+      formData.append(
+        "flashSale[isActive]",
+        data.flashSale.isActive ? "true" : "false"
+      );
+      formData.append("flashSale[salePrice]", data.flashSale.salePrice ?? 0);
+      formData.append("flashSale[startTime]", data.flashSale.startTime ?? "");
+      formData.append("flashSale[endTime]", data.flashSale.endTime ?? "");
+    }
 
+    // ẢNH
     Array.from(imageFiles || []).forEach((image) => {
       formData.append("images", image);
-    }); // APPEND URL ẢNH CŨ (để giữ lại)
-
+    });
     (existingImages || []).forEach((url) => formData.append("images", url));
 
     try {
       await api.put(`/products/${productId}`, formData, {
         headers: { "Content-Type": "multipart/form-data" },
       });
-      toast.success("Cập nhật sản phẩm thành công");
+      toast.success("✅ Cập nhật sản phẩm thành công!");
       fetchProducts();
       return true;
     } catch (error) {
@@ -178,10 +199,10 @@ const useProducts = () => {
   };
 
   const deleteProduct = async (id, name) => {
-    if (window.confirm(`Bạn có chắc muốn xóa sản phẩm ${name} này?`)) {
+    if (window.confirm(`Bạn có chắc muốn xóa sản phẩm "${name}"?`)) {
       try {
         await api.delete(`/products/${id}`);
-        toast.success("Xóa sản phẩm thành công");
+        toast.success("🗑️ Xóa sản phẩm thành công!");
         fetchProducts();
         return true;
       } catch (error) {
@@ -191,12 +212,13 @@ const useProducts = () => {
       }
     }
     return false;
-  }; // ------------------------- UTILITIES ------------------------- // Tên Category được hiển thị trong bảng
+  };
 
+  // ------------------------- UTILITIES -------------------------
   const getCategoryName = (slug) => {
     const cat = categories.find((c) => c.slug === slug);
     return cat ? cat.name : slug;
-  }; // Giá trị trả về của hook
+  };
 
   return {
     products,

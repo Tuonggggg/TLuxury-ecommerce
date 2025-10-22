@@ -2,12 +2,12 @@ import { ShoppingCart, User, Menu, Search, X, Phone, LogOut, Settings, Heart, Hi
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuLabel,
+    DropdownMenuSeparator,
+    DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
@@ -41,7 +41,7 @@ const SearchInput = ({ searchQuery, setSearchQuery, handleSearch, handleClearSea
     </div>
 );
 
-// Component con: UserDropdown (Không export)
+// Component con: UserDropdown (Đã sửa đường dẫn)
 const UserDropdown = ({ user, handleLogout, PRIMARY_COLOR_HOVER }) => {
     const userName = user.username || user.email.split('@')[0] || "Tài khoản";
 
@@ -60,8 +60,10 @@ const UserDropdown = ({ user, handleLogout, PRIMARY_COLOR_HOVER }) => {
                     Xin chào, {userName}
                 </DropdownMenuLabel>
                 <DropdownMenuSeparator />
+                {/* Đã sửa: Link hồ sơ người dùng */}
                 <Link to="/account/profile"><DropdownMenuItem><Settings className="mr-2 h-4 w-4" /><span>Thông tin cá nhân</span></DropdownMenuItem></Link>
-                <Link to="/orders"><DropdownMenuItem><History className="mr-2 h-4 w-4" /><span>Lịch sử đơn hàng</span></DropdownMenuItem></Link>
+                {/* Đã sửa: Link lịch sử đơn hàng */}
+                <Link to="/my-orders"><DropdownMenuItem><History className="mr-2 h-4 w-4" /><span>Lịch sử đơn hàng</span></DropdownMenuItem></Link>
                 <Link to="/favorites"><DropdownMenuItem><Heart className="mr-2 h-4 w-4" /><span>Sản phẩm yêu thích</span></DropdownMenuItem></Link>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem onClick={handleLogout} className="text-red-500 hover:bg-red-50 hover:text-red-600 cursor-pointer">

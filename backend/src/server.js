@@ -20,8 +20,10 @@ import userRoutes from "./routes/UserRouter.js";
 
 import { notFound, errorHandler } from "./middlewares/ErrorMiddleware.js";
 
+// ✅ 1. IMPORT LOGIC CRON JOB
+import runStockCleanup from "./cron/stockCleanup.js";
 
-connectDB();
+connectDB(); // Kết nối DB
 
 const app = express();
 
@@ -59,6 +61,9 @@ const limiter = rateLimit({
   legacyHeaders: false,
 });
 app.use(limiter);
+
+// ✅ 2. KHỞI CHẠY LOGIC CRON JOB NGAY SAU KHI SERVER KHỞI ĐỘNG
+runStockCleanup();
 
 // Routes
 app.use("/api/auth", authRoutes);
