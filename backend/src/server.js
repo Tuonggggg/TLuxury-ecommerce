@@ -1,6 +1,7 @@
 import express from "express";
 import dotenv from "dotenv";
 import cors from "cors";
+import path from "path";
 dotenv.config();
 
 import helmet from "helmet";
@@ -23,8 +24,7 @@ import discountRoutes from "./routes/DiscountRoutes.js";
 
 import { notFound, errorHandler } from "./middlewares/ErrorMiddleware.js";
 
-// 1. IMPORT LOGIC CRON JOB
-import runStockCleanup from "./cron/stockCleanup.js";
+const __dirname = path.resolve();
 
 connectDB(); // Kết nối DB
 
@@ -37,22 +37,24 @@ app.use(mongoSanitize());
 app.use(cookieParser());
 
 // CORS
-const whitelist = (process.env.CORS_ORIGIN || "http://localhost:5173").split(
-  ","
-);
-app.use(
-  cors({
-    origin: function (origin, callback) {
-      if (!origin) return callback(null, true);
-      if (whitelist.indexOf(origin) !== -1) {
-        callback(null, true);
-      } else {
-        callback(new Error("Not allowed by CORS"));
-      }
-    },
-    credentials: true,
-  })
-);
+if (process.env.NODE_ENV !== "production") {
+  const whitelist = (process.env.CORS_ORIGIN || "http://localhost:5173").split(
+    ","
+  );
+  app.use(
+    cors({
+      origin: function (origin, callback) {
+        if (!origin) return callback(null, true);
+        if (whitelist.indexOf(origin) !== -1) {
+          callback(null, true);
+        } else {
+          callback(new Error("Not allowed by CORS"));
+        }
+      },
+      credentials: true,
+    })
+  );
+}
 
 app.use(express.json({ limit: "2mb" }));
 
@@ -70,10 +72,6 @@ if (process.env.NODE_ENV === "production") {
 } else {
   console.log("Rate Limiter: Đã tắt (Development Mode)");
 }
-// ❌ Xóa dòng app.use(limiter); cũ ở đây
-
-// 2. KHỞI CHẠY LOGIC CRON JOB
-// runStockCleanup();
 
 // Routes
 app.use("/api/auth", authRoutes);
@@ -87,6 +85,12 @@ app.use("/api/payments", paymentRoutes);
 app.use("/api/blogs", blogRoutes);
 app.use("/api/discounts", discountRoutes);
 
+if (process.env.NODE_ENV === "production") {
+  app.use(express.static(path.join(__dirname, "../frontend/dist")));
+  app.get("*", (req, res) => {
+    res.sendFile(path.join(__dirname, "../frontend/dist/index.html"));
+  });
+}
 
 // 404 + error handler
 app.use(notFound);
