@@ -16,7 +16,7 @@ import {
   protect,
   authorizeRoles,
   checkOptionalAuth, // <-- THÊM VÀO
-} from "../middlewares/authMiddleware.js"; // Đảm bảo đúng tên file
+} from "../middlewares/AuthMiddleware.js"; // Đảm bảo đúng tên file
 
 const router = express.Router();
 

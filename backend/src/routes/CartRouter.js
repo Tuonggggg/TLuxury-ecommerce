@@ -6,7 +6,7 @@ import {
   removeFromCart,
   clearCart,
 } from "../controllers/CartController.js";
-import { protect } from "../middlewares/authMiddleware.js";
+import { protect } from "../middlewares/AuthMiddleware.js";
 
 const router = express.Router();
 

@@ -1,7 +1,7 @@
 // src/cron/stockCleanup.js
 import cron from 'node-cron';
-import Order from '../models/orderModel.js';
-import Product from '../models/productModel.js';
+import Order from '../models/OrderModel.js';
+import Product from '../models/ProductModel.js';
 
 const runStockCleanup = () => {
     // Chạy mỗi phút (* * * * *)

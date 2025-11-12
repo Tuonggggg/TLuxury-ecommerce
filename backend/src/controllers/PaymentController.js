@@ -1,5 +1,5 @@
 import asyncHandler from "express-async-handler";
-import Order from "../models/orderModel.js";
+import Order from "../models/OrderModel.js";
 import Cart from "../models/cartModel.js";
 
 // @desc    Thanh toán cho 1 đơn hàng

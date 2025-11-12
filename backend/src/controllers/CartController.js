@@ -1,5 +1,5 @@
 import Cart from "../models/cartModel.js";
-import Product from "../models/productModel.js";
+import Product from "../models/ProductModel.js";
 
 // ✅ ĐỊNH NGHĨA GIỚI HẠN MUA TỐI ĐA
 const MAX_QTY_PER_ITEM = 5;
