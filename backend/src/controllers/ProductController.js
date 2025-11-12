@@ -1,6 +1,6 @@
 import mongoose from "mongoose";
 import Product from "../models/ProductModel.js";
-import Category from "../models/categoryModel.js";
+import Category from "../models/CategoryModel.js";
 
 // =========================================================
 // HÀM LOẠI BỎ DẤU TIẾNG VIỆT
