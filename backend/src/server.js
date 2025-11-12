@@ -92,18 +92,18 @@ app.use(express.json({ limit: "2mb" }));
 
 // ✅ FIX LỖI "TOO MANY REQUESTS" (429)
 // Chỉ áp dụng giới hạn request khi chạy ở môi trường production
-if (process.env.NODE_ENV === "production") {
-  const limiter = rateLimit({
-    windowMs: 15 * 60 * 1000, // 15 phút
-    max: 100, // Tối đa 100 requests mỗi 15 phút
-    standardHeaders: true,
-    legacyHeaders: false,
-  });
-  app.use(limiter);
-  console.log("Rate Limiter: Đã kích hoạt (Production Mode)");
-} else {
-  console.log("Rate Limiter: Đã tắt (Development Mode)");
-}
+// if (process.env.NODE_ENV === "production") {
+//   const limiter = rateLimit({
+//     windowMs: 15 * 60 * 1000, // 15 phút
+//     max: 100, // Tối đa 100 requests mỗi 15 phút
+//     standardHeaders: true,
+//     legacyHeaders: false,
+//   });
+//   app.use(limiter);
+//   console.log("Rate Limiter: Đã kích hoạt (Production Mode)");
+// } else {
+//   console.log("Rate Limiter: Đã tắt (Development Mode)");
+// }
 
 // Routes
 app.use("/api/auth", authRoutes);
