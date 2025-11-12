@@ -1,20 +1,19 @@
-// controllers/OrderController.js
 import asyncHandler from "express-async-handler";
-import Order from "../models/orderModel.js";
-import Product from "../models/productModel.js";
+import Order from "../models/OrderModel.js";
+import Product from "../models/ProductModel.js"; // Đảm bảo tên file model là 'productModel.js'
 import Cart from "../models/cartModel.js";
-import {
-  requestMomoPayment,
-  verifyMomoSignature,
-} from "../utils/momoPayment.js";
+import Voucher from "../models/DiscountModel.js";
 import {
   createVnPayPayment,
   verifyVnPayReturn,
 } from "../utils/vnpayPayment.js";
+import sendEmail from "../utils/sendEmail.js";
 
-// Helper: normalize incoming order items (Giữ nguyên)
+// ==================================================
+// 🧩 Helper: Chuẩn hóa dữ liệu đầu vào
+// ==================================================
 function normalizeIncomingItems(items) {
-  /* ... */ return items.map((it) => {
+  return items.map((it) => {
     if (it.product) {
       return {
         product: it.product.toString(),
@@ -31,10 +30,26 @@ function normalizeIncomingItems(items) {
   });
 }
 
-// POST /api/orders
+// ==================================================
+// 🛒 Tạo đơn hàng (checkout)
+// ==================================================
 const checkout = asyncHandler(async (req, res) => {
-  const userId = req.user._id;
-  let { orderItems, items, shippingAddress, paymentMethod, note } = req.body;
+  const userId = req.user ? req.user._id : null;
+  let {
+    orderItems,
+    items,
+    shippingAddress,
+    paymentMethod,
+    note,
+    voucherCode,
+    // (Giá trị từ Tóm tắt đơn hàng FE)
+    itemsPrice: itemsPriceFromFE,
+    shippingPrice: shippingPriceFromFE,
+    taxPrice: taxPriceFromFE,
+    totalPrice: totalPriceFromFE,
+    discountAmount: discountAmountFromFE,
+    finalTotal: finalTotalFromFE,
+  } = req.body; // --- 1. Kiểm tra Giỏ hàng & Chuẩn hóa ---
 
   const incomingItems = orderItems || items;
   if (!incomingItems || incomingItems.length === 0) {
@@ -45,331 +60,399 @@ const checkout = asyncHandler(async (req, res) => {
   let normalized;
   try {
     normalized = normalizeIncomingItems(incomingItems);
-  } catch (err) {
+  } catch {
     res.status(400);
     throw new Error("Dữ liệu sản phẩm không hợp lệ.");
   }
 
   const productIds = normalized.map((i) => i.product);
-  const productsInDB = await Product.find({ _id: { $in: productIds } });
+  const productsInDB = await Product.find({ _id: { $in: productIds } }); // --- 2. Xác thực lại Stock (Bảo mật) ---
 
-  let itemsPrice = 0;
+  let itemsPrice = 0; // Giá trị tính lại ở Backend
   const finalOrderItems = [];
 
   for (const item of normalized) {
     const product = productsInDB.find((p) => p._id.toString() === item.product);
-    if (!product) {
-      res.status(400);
-      throw new Error(`Sản phẩm ${item.product} không tồn tại.`);
-    }
-    if (product.stock < item.qty) {
-      res.status(400);
+    if (!product) throw new Error(`Sản phẩm ${item.product} không tồn tại.`);
+    if (product.stock < item.qty)
       throw new Error(
         `Sản phẩm ${product.name} không đủ số lượng (còn ${product.stock}).`
       );
-    }
-
-    const finalPriceAtCheckout = product.finalPrice;
-    itemsPrice += finalPriceAtCheckout * item.qty;
-
+    const finalPriceAtCheckout = product.finalPrice; // Sử dụng Virtual 'finalPrice'
+    itemsPrice += finalPriceAtCheckout * item.qty; // ✅ FIX LỖI VALIDATION: Lấy 'name' và 'price' từ 'product'
     finalOrderItems.push({
       product: product._id,
-      name: product.name,
-      images: product.images,
+      name: product.name, // 👈 Sửa: Lấy từ 'product.name'
+      images: product.images.length > 0 ? [product.images[0]] : [], // Chỉ lưu ảnh đầu tiên
       qty: item.qty,
-      price: finalPriceAtCheckout,
+      price: finalPriceAtCheckout, // 👈 Sửa: Lấy từ 'finalPriceAtCheckout'
     });
-  }
+  } // --- 3. Tính toán tổng tiền (Backend) ---
 
   const shippingPrice = itemsPrice >= 1000000 ? 0 : 30000;
-  const taxPrice = Math.round(itemsPrice * 0.1);
+  const taxPrice = Math.round(itemsPrice * 0.08); // Dùng 10% (hoặc 8% nếu muốn)
   const totalPrice = Math.round(itemsPrice + shippingPrice + taxPrice);
 
-  const expiryTime = new Date(Date.now() + 15 * 60000);
+  let discountAmount = 0;
+  let appliedVoucher = null;
 
-  const order = new Order({
+  if (voucherCode) {
+    const voucher = await Voucher.findOne({
+      code: voucherCode.trim().toUpperCase(),
+      isActive: true,
+    });
+    const now = new Date();
+
+    // Kiểm tra hợp lệ
+    if (
+      voucher &&
+      voucher.expiryDate >= now &&
+      voucher.usedCount < voucher.usageLimit &&
+      totalPrice >= voucher.minOrder
+    ) {
+      if (voucher.type === "percent") {
+        discountAmount = Math.min(
+          Math.round((totalPrice * voucher.value) / 100), // Tính trên tổng tiền (sau VAT)
+          voucher.maxDiscount || Infinity
+        );
+      } else if (voucher.type === "fixed") {
+        discountAmount = voucher.value;
+      }
+      discountAmount = Math.max(0, Math.min(discountAmount, totalPrice));
+      appliedVoucher = voucher;
+    } // Nếu voucher không hợp lệ (hết hạn, sai mã), discountAmount vẫn là 0
+  } // Tổng cuối cùng (Số tiền khách phải trả)
+
+  const finalTotal = Math.max(0, totalPrice - discountAmount);
+  const expiryTime = new Date(Date.now() + 15 * 60000); // ======================= // 🧾 5. Tạo đơn hàng // =======================
+
+  const orderData = {
     user: userId,
-    orderItems: finalOrderItems,
+    orderItems: finalOrderItems, // Đã fix name và price
     shippingAddress,
     itemsPrice,
     shippingPrice,
     taxPrice,
-    totalPrice,
+    totalPrice: totalPrice, // Tổng (trước giảm)
+    discountAmount: discountAmount, // Số tiền giảm
+    finalTotal: finalTotal, // Tổng (sau giảm)
     paymentMethod,
     note: note || "",
     stockReservationExpires: expiryTime,
-    orderStatus: "pending", // ✅ FIX: ĐẶT TRẠNG THÁI CHỜ BAN ĐẦU LÀ PENDING
-  });
+    orderStatus: "pending",
+    voucherCode: appliedVoucher ? appliedVoucher.code : null,
+  };
 
-  const createdOrder = await order.save(); // TRỪ KHO NGAY LẬP TỨC (cho tất cả phương thức)
+  const order = new Order(orderData);
+  const createdOrder = await order.save(); // ✅ Validation Error sẽ không xảy ra nữa // --- 6. Trừ kho tạm thời ---
 
-  for (const item of finalOrderItems) {
-    await Product.findByIdAndUpdate(item.product, {
-      $inc: { stock: -item.qty },
-    });
-  } // Xử lý thanh toán
+  await Promise.all(
+    finalOrderItems.map((item) =>
+      Product.findByIdAndUpdate(item.product, { $inc: { stock: -item.qty } })
+    )
+  ); // --- 7. Cập nhật lượt dùng voucher (Nếu có) ---
+
+  if (appliedVoucher) {
+    try {
+      await Voucher.findOneAndUpdate(
+        { code: appliedVoucher.code },
+        { $inc: { usedCount: 1 } }
+      );
+    } catch (err) {
+      console.error("Lỗi cập nhật voucher:", err.message);
+    }
+  } // ======================= // 📧 8. Gửi email xác nhận // =======================
+
+  try {
+    const { email, name, address, city } = createdOrder.shippingAddress;
+    if (email) {
+      const subject = `[TLuxury] Xác nhận đơn hàng #${createdOrder._id
+        .toString()
+        .slice(-6)}`;
+      const finalPriceForEmail = Number(createdOrder.finalTotal) || 0;
+      const formattedPrice = finalPriceForEmail.toLocaleString("vi-VN");
+      const htmlContent = `
+        <div style="font-family: Arial, sans-serif; line-height: 1.6;">
+          <h2>Cảm ơn bạn đã đặt hàng tại TLuxury!</h2>
+          <p>Xin chào ${name},</p>
+          <p>Mã đơn hàng của bạn là: #${createdOrder._id.toString()}</p>
+          <hr>
+          <p><strong>Tổng cộng:</strong> 
+            <span style="color: #d9534f; font-weight: bold;">
+            ${formattedPrice} ₫ 
+            </span>
+          </p>
+          <p><strong>Phương thức thanh toán:</strong> ${
+            createdOrder.paymentMethod
+          }</p>
+          <p><strong>Địa chỉ giao hàng:</strong> ${address}, ${city}</p>
+          <hr>
+          <p>Cảm ơn bạn đã tin tưởng TLuxury.</p>
+        </div>
+      `;
+      await sendEmail({ email, subject, message: htmlContent });
+    }
+  } catch (emailError) {
+    console.error("LỖI GỬI EMAIL:", emailError);
+    Note;
+  } // ======================= // 💳 9. Thanh toán // =======================
 
   if (paymentMethod === "COD") {
-    await Cart.deleteOne({ user: userId });
-    res.status(201).json(createdOrder);
-  } else if (paymentMethod === "Momo") {
-    const momoResponse = await requestMomoPayment({
-      orderId: createdOrder._id.toString(),
-      amount: totalPrice,
-      orderInfo: `Thanh toán Momo đơn hàng #${createdOrder._id}`,
-    });
-    return res.status(200).json({ payUrl: momoResponse.payUrl });
-  } else if (paymentMethod === "VNPAY") {
+    if (userId) await Cart.deleteOne({ user: userId });
+    return res.status(201).json(createdOrder);
+  }
+
+  if (paymentMethod === "VNPAY") {
     const vnpayUrl = createVnPayPayment({
       orderId: createdOrder._id.toString(),
-      amount: totalPrice,
+      amount: Math.round(finalTotal), // ✅ Gửi số tiền ĐÚNG (sau giảm giá)
       orderInfo: `Thanh toán VNPAY đơn hàng #${createdOrder._id}`,
       ipAddr:
-        req.ip ||
-        req.headers["x-forwarded-for"] ||
-        req.connection.remoteAddress,
+        req.headers["x-forwarded-for"]?.split(",")[0].trim() ||
+        req.socket.remoteAddress ||
+        "127.0.0.1",
     });
+
     return res.status(200).json({ payUrl: vnpayUrl });
   }
 });
 
-// POST /api/orders/momo-callback
-const momoCallback = asyncHandler(async (req, res) => {
-  const { orderId, resultCode, transId, ...rest } = req.body;
-
-  if (!verifyMomoSignature(req.body)) {
-    console.log("Momo IPN: Invalid signature.");
-    return res.json({ status: 500, message: "Invalid Signature" });
-  }
-  const order = await Order.findById(orderId);
-  if (!order) {
-    return res.json({ status: 204, message: "Order not found" });
-  }
-
-  if (resultCode === 0 && !order.isPaid) {
-    order.isPaid = true;
-    order.paidAt = Date.now();
-    // ✅ FIX: ĐẶT TRẠNG THÁI LÀ PROCESSING (Đã thanh toán)
-    order.orderStatus = "processing";
-    order.paymentResult = {
-      id: transId,
-      status: "SUCCESS",
-      method: order.paymentMethod,
-      data: rest,
-    };
-    await order.save();
-
-    await Cart.deleteOne({ user: order.user });
-
-    return res.json({ status: 0, message: "Success" });
-  } else if (!order.isPaid) {
-    // Nếu thất bại, đơn hàng vẫn ở trạng thái PENDING/PROCESSING (đã trừ kho tạm)
-    order.paymentResult = {
-      id: transId || "N/A",
-      status: "FAILED",
-      method: order.paymentMethod,
-      data: rest,
-    };
-    await order.save();
-    return res.json({ status: 0, message: "Payment Failed" });
-  }
-  return res.json({ status: 0, message: "Order already processed" });
-});
-
-// PUT /api/orders/:id/cancel
+// ==================================================
+// ❌ Hủy đơn hàng (User)
+// ==================================================
 const cancelOrder = asyncHandler(async (req, res) => {
-  const orderId = req.params.id;
-  const userId = req.user._id;
-
-  const order = await Order.findById(orderId);
-
-  if (!order) {
-    res.status(404);
-    throw new Error("Đơn hàng không tìm thấy.");
-  }
-  if (order.user.toString() !== userId.toString()) {
+  const order = await Order.findById(req.params.id);
+  if (!order) throw new Error("Đơn hàng không tìm thấy.");
+  if (
+    !req.user ||
+    !order.user ||
+    order.user.toString() !== req.user._id.toString()
+  ) {
     res.status(403);
     throw new Error("Bạn không có quyền hủy đơn hàng này.");
-  } // 2. Kiểm tra trạng thái: CHỈ cho phép hủy nếu là 'pending'
+  }
+  if (order.orderStatus !== "pending")
+    throw new Error("Chỉ có thể hủy đơn hàng ở trạng thái 'Chờ xác nhận'.");
 
-  if (order.orderStatus !== "pending") {
-    res.status(400);
-    throw new Error(
-      `Không thể hủy đơn hàng khi đang ở trạng thái: ${order.orderStatus}. Chỉ có thể hủy khi đơn hàng ở trạng thái chờ.`
+  order.orderStatus = "cancelled"; // Hoàn trả kho
+
+  await Promise.all(
+    order.orderItems.map((item) =>
+      Product.findByIdAndUpdate(item.product, { $inc: { stock: item.qty } })
+    )
+  );
+
+  // ✅ FIX: Hoàn trả lượt sử dụng Voucher (nếu có)
+  if (order.voucherCode) {
+    await Voucher.findOneAndUpdate(
+      { code: order.voucherCode },
+      { $inc: { usedCount: -1 } } // Trừ 1 lượt đã dùng
     );
-  } // 3. Thực hiện hủy
-
-  order.orderStatus = "cancelled"; // 4. Hoàn trả Stock
-  for (const item of order.orderItems) {
-    await Product.findByIdAndUpdate(item.product, {
-      $inc: { stock: item.qty }, // Cộng lại số lượng đã trừ
-    });
   }
 
   const cancelledOrder = await order.save();
-
   res.json({
     message: "Đơn hàng đã được hủy thành công.",
     order: cancelledOrder,
   });
 });
 
-// GET /api/orders/vnpay-callback
+// ==================================================
+// 💳 Callback từ VNPAY
+// ==================================================
 const vnpayCallback = asyncHandler(async (req, res) => {
   const vnp_Params = { ...req.query };
   const { isValid, orderId, responseCode, message } =
     verifyVnPayReturn(vnp_Params);
-
   const FRONTEND_URL = process.env.FRONTEND_URL || "http://localhost:5173";
 
-  if (!isValid) {
-    return res.redirect(
-      `${FRONTEND_URL}/payment/failed?message=Chữ ký không hợp lệ`
-    );
-  }
   const order = await Order.findById(orderId);
-  if (!order) {
+  if (!order)
     return res.redirect(
       `${FRONTEND_URL}/payment/failed?message=Đơn hàng không tìm thấy`
     );
-  }
+  if (!isValid)
+    return res.redirect(
+      `${FRONTEND_URL}/payment/failed?message=Chữ ký không hợp lệ`
+    );
 
   if (responseCode === "00" && !order.isPaid) {
     order.isPaid = true;
     order.paidAt = Date.now();
-    order.orderStatus = "processing"; // ✅ FIX: ĐẶT TRẠNG THÁI LÀ PROCESSING
+    order.orderStatus = "processing";
     order.paymentResult = {
-      id: vnp_Params.vnp_TransactionNo,
-      status: "SUCCESS",
-      method: order.paymentMethod,
-      data: vnp_Params,
+      /* ... */
     };
+    // ✅ FIX: CẬP NHẬT 'SOLD' KHI THANH TOÁN THÀNH CÔNG
+    await Promise.all(
+      order.orderItems.map((item) =>
+        Product.findByIdAndUpdate(item.product, { $inc: { sold: item.qty } })
+      )
+    );
+
     await order.save();
-
-    await Cart.deleteOne({ user: order.user });
-
+    if (order.user) await Cart.deleteOne({ user: order.user });
     return res.redirect(`${FRONTEND_URL}/order-success/${orderId}`);
-  } else if (!order.isPaid) {
-    order.paymentResult = {
-      id: vnp_Params.vnp_TransactionNo || "N/A",
-      status: "FAILED",
-      method: order.paymentMethod,
-      data: vnp_Params,
-    };
-    await order.save();
-    return res.redirect(`${FRONTEND_URL}/payment/failed?message=${message}`);
-  }
+  } // Thanh toán thất bại (Không cần hoàn kho vì Cron Job sẽ xử lý)
 
-  return res.redirect(`${FRONTEND_URL}/order-success/${orderId}`);
+  order.paymentResult = {
+    /* ... */
+  };
+  await order.save();
+  return res.redirect(`${FRONTEND_URL}/payment/failed?message=${message}`);
 });
 
-// DELETE /api/orders/:id (Admin)
+// ==================================================
+// 👑 ADMIN: Xóa đơn hàng
+// ==================================================
 const deleteOrder = asyncHandler(async (req, res) => {
   const order = await Order.findById(req.params.id);
+  if (!order) throw new Error("Đơn hàng không tìm thấy"); // Hoàn trả kho/sold NẾU đơn hàng chưa giao hoặc chưa hủy
 
-  if (order) {
-    if (
-      order.orderStatus !== "delivered" &&
-      order.orderStatus !== "cancelled"
-    ) {
-      for (const item of order.orderItems) {
+  if (order.orderStatus !== "delivered" && order.orderStatus !== "cancelled") {
+    await Promise.all(
+      order.orderItems.map(async (item) => {
         const product = await Product.findById(item.product);
         if (product) {
-          product.stock = (product.stock || 0) + item.qty;
+          product.stock += item.qty; // ✅ FIX: Chỉ trừ 'sold' nếu đơn hàng ĐÃ ĐƯỢC TÍNH (isPaid = true)
+          if (order.isPaid) {
+            product.sold = Math.max(0, (product.sold || 0) - item.qty);
+          }
           await product.save();
         }
-      }
+      })
+    );
+    // ✅ FIX: Hoàn trả Voucher nếu xóa đơn chưa hoàn thành
+    if (order.voucherCode) {
+      await Voucher.findOneAndUpdate(
+        { code: order.voucherCode },
+        { $inc: { usedCount: -1 } }
+      );
     }
-
-    await Order.deleteOne({ _id: req.params.id });
-    res.json({ message: "Đơn hàng đã được xóa thành công." });
-  } else {
-    res.status(404);
-    throw new Error("Đơn hàng không tìm thấy");
   }
+
+  await Order.deleteOne({ _id: req.params.id });
+  res.json({ message: "Đơn hàng đã được xóa thành công." });
 });
 
-// GET /api/orders/my
+// ==================================================
+// 🧑‍💻 USER: Lấy đơn hàng của tôi
+// ==================================================
 const getMyOrders = asyncHandler(async (req, res) => {
   const orders = await Order.find({ user: req.user._id }).sort("-createdAt");
   res.json(orders);
 });
 
-// GET /api/orders (Admin)
+// ==================================================
+// 👑 ADMIN: Lấy tất cả đơn hàng (Phân trang)
+// ==================================================
 const getOrders = asyncHandler(async (req, res) => {
   const page = parseInt(req.query.page) || 1;
   const limit = parseInt(req.query.limit) || 10;
   const statusFilter = req.query.status;
-
   const skip = (page - 1) * limit;
+  const findQuery =
+    statusFilter && statusFilter !== "all" ? { orderStatus: statusFilter } : {};
 
-  let findQuery = {};
-  if (statusFilter && statusFilter !== "all") {
-    findQuery.orderStatus = statusFilter;
-  }
-
-  const orders = await Order.find(findQuery)
-    .populate("user", "username email address phone")
-    .sort({ createdAt: -1 })
-    .skip(skip)
-    .limit(limit);
-
-  const count = await Order.countDocuments(findQuery);
-  const totalPages = Math.ceil(count / limit);
+  const [orders, count] = await Promise.all([
+    Order.find(findQuery)
+      .populate("user", "username email address phone")
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(limit),
+    Order.countDocuments(findQuery),
+  ]);
 
   res.json({
-    orders: orders,
-    page: page,
-    totalPages: totalPages,
+    orders,
+    page,
+    totalPages: Math.ceil(count / limit),
     totalOrders: count,
   });
 });
 
-// GET /api/orders/:id
+// ==================================================
+// 📦 Lấy đơn hàng bằng ID (Chi tiết)
+// ==================================================
 const getOrderById = asyncHandler(async (req, res) => {
   const order = await Order.findById(req.params.id)
-    .populate("user", "name email")
+    .populate("user", "username email")
     .populate("orderItems.product", "name images slug");
-
-  if (order) {
-    if (
-      order.user._id.toString() !== req.user._id.toString() &&
-      req.user.role !== "admin"
-    ) {
-      res.status(403);
-      throw new Error("Không có quyền truy cập đơn hàng này");
-    }
-    res.json(order);
-  } else {
+  if (!order) {
     res.status(404);
     throw new Error("Đơn hàng không tìm thấy");
   }
+  if (
+    req.user?.role === "admin" ||
+    (order.user && order.user._id.toString() === req.user._id.toString())
+  ) {
+    return res.json(order);
+  }
+  res.status(403);
+  throw new Error("Không có quyền truy cập đơn hàng này");
 });
 
-// PUT /api/orders/:id/status (Admin)
+// ==================================================
+// 👑 ADMIN: Cập nhật trạng thái đơn hàng
+// ==================================================
 const updateOrderStatus = asyncHandler(async (req, res) => {
   const order = await Order.findById(req.params.id);
-  if (order) {
-    order.orderStatus = req.body.status || order.orderStatus;
-    if (req.body.status === "delivered" && !order.deliveredAt) {
-      order.deliveredAt = Date.now();
+  if (!order) throw new Error("Đơn hàng không tìm thấy");
+
+  const oldStatus = order.orderStatus;
+  const newStatus = req.body.status;
+
+  order.orderStatus = newStatus || oldStatus; // ✅ FIX: LOGIC CẬP NHẬT SOLD VÀ ISPAID
+
+  if (!order.isPaid) {
+    // --- KHI ĐƠN HÀNG CHƯA ĐƯỢC TÍNH DOANH THU ---
+    if (
+      (newStatus === "processing" || newStatus === "delivered") &&
+      oldStatus === "pending"
+    ) {
+      // Đây là lần đầu tiên Admin xác nhận (kể cả COD)
+      await Promise.all(
+        order.orderItems.map((item) =>
+          Product.findByIdAndUpdate(item.product, { $inc: { sold: item.qty } })
+        )
+      );
+      order.isPaid = true; // Đánh dấu là đã tính doanh thu
+      if (newStatus === "delivered") order.deliveredAt = Date.now();
     }
-    const updatedOrder = await order.save();
-    res.json(updatedOrder);
   } else {
-    res.status(404);
-    throw new Error("Đơn hàng không tìm thấy");
+    // --- KHI ĐƠN HÀNG ĐÃ ĐƯỢC TÍNH DOANH THU (isPaid = true) ---
+    if (newStatus === "cancelled" && oldStatus !== "cancelled") {
+      // Admin hủy đơn hàng đã thanh toán/xác nhận
+      await Promise.all(
+        order.orderItems.map((item) =>
+          Product.findByIdAndUpdate(item.product, {
+            $inc: { stock: item.qty, sold: -item.qty }, // Hoàn kho VÀ trừ sold
+          })
+        )
+      );
+      order.isPaid = false; // Không còn tính doanh thu
+
+      // Hoàn trả voucher
+      if (order.voucherCode) {
+        await Voucher.findOneAndUpdate(
+          { code: order.voucherCode },
+          { $inc: { usedCount: -1 } }
+        );
+      }
+    }
   }
+
+  const updatedOrder = await order.save();
+  res.json(updatedOrder);
 });
 
 export {
   checkout,
+  cancelOrder,
+  vnpayCallback,
+  deleteOrder,
   getMyOrders,
   getOrders,
   getOrderById,
-  cancelOrder,
   updateOrderStatus,
-  momoCallback,
-  vnpayCallback,
-  deleteOrder,
 };

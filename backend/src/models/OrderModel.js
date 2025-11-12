@@ -1,4 +1,3 @@
-// models/orderModel.js
 import mongoose from "mongoose";
 
 const orderItemSchema = new mongoose.Schema({
@@ -21,13 +20,19 @@ const orderItemSchema = new mongoose.Schema({
 
 const orderSchema = new mongoose.Schema(
   {
-    user: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
+    user: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+      required: false,
+      default: null,
+    },
+
     orderItems: [orderItemSchema],
 
     shippingAddress: {
-      name: { type: String },
-      phone: { type: String },
-      email: { type: String },
+      name: { type: String, required: true },
+      phone: { type: String, required: true },
+      email: { type: String, required: true },
       address: { type: String, required: true },
       city: { type: String },
       postalCode: { type: String },
@@ -37,7 +42,14 @@ const orderSchema = new mongoose.Schema(
     itemsPrice: { type: Number, required: true, default: 0 },
     shippingPrice: { type: Number, required: true, default: 0 },
     taxPrice: { type: Number, required: true, default: 0 },
-    totalPrice: { type: Number, required: true },
+    totalPrice: { type: Number, required: true, default: 0 },
+
+    // ✅ Thêm hai trường mới:
+    discountAmount: { type: Number, required: true, default: 0 },
+    finalTotal: { type: Number, required: true, default: 0 },
+
+    // ✅ Nếu có mã giảm giá:
+    voucherCode: { type: String, default: null },
 
     note: { type: String, default: "", maxlength: 500 },
 
@@ -52,7 +64,6 @@ const orderSchema = new mongoose.Schema(
     isPaid: { type: Boolean, default: false },
     paidAt: Date,
 
-    // ✅ TRƯỜNG MỚI: Dùng cho Cron Job hoàn trả kho tạm (15 phút)
     stockReservationExpires: { type: Date },
 
     orderStatus: {

@@ -1,22 +1,26 @@
-// src/App.jsx (Cập nhật)
-
 import { Routes, Route } from "react-router-dom";
 import { Fragment } from "react";
-import { Toaster } from "sonner"; // 🔑 Giữ lại import Toaster
+import { Toaster } from "sonner";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
 import ScrollToTop from "@/components/ScrollToTop";
 import { routes } from "@/routes/routes";
+// ✅ IMPORT COMPONENT CHAT MỚI
+import LiveChatButton from "@/components/LiveChatButton";
 
-// DefaultLayout đã sửa: Thêm Toaster và ScrollToTop
+
+// DefaultLayout đã sửa: Thêm LiveChatButton
 function DefaultLayout({ children }) {
   return (
     <div className="flex flex-col min-h-screen">
-      <ScrollToTop /> {/* Đặt ở đây để chỉ hoạt động trên các trang có layout */}
+      <ScrollToTop />
       <Header />
       <main className="flex-1">{children}</main>
       <Footer />
-      {/* Toaster đặt ở cuối layout */}
+
+      {/* ✅ TÍCH HỢP NÚT CHAT VÀO LAYOUT */}
+      <LiveChatButton />
+
       <Toaster position="top-right" richColors />
     </div>
   );
@@ -25,7 +29,6 @@ function DefaultLayout({ children }) {
 function App() {
   return (
     <>
-      {/* 💡 Đã loại bỏ Toaster và ScrollToTop khỏi đây */}
       <Routes>
         {routes.map((route) => {
           const Page = route.page;

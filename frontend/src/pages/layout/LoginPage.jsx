@@ -8,10 +8,9 @@ import axios from 'axios';
 import { toast } from 'sonner';
 import { useAuth } from '@/hooks/useAuth';
 
-// --- Cấu hình API Base URL ---
+
 const API_URL = 'http://localhost:5000/api/auth/login';
 
-// Zod schema validation (Giữ nguyên)
 const loginSchema = z.object({
   email: z.string().email('Email không hợp lệ'),
   password: z.string().min(6, 'Mật khẩu phải có ít nhất 6 ký tự'),
@@ -23,7 +22,10 @@ export default function LoginForm() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [apiError, setApiError] = useState('');
   const navigate = useNavigate();
-  const { login } = useAuth(); // 🔑 LẤY HÀM login() từ AuthContext
+  const { login } = useAuth();
+
+  // [SỬA] Gỡ bỏ dispatch
+  // const dispatch = useDispatch();
 
   const {
     register,
@@ -31,67 +33,46 @@ export default function LoginForm() {
     formState: { errors },
   } = useForm({
     resolver: zodResolver(loginSchema),
-    defaultValues: {
-      rememberMe: false,
-    },
+    defaultValues: { rememberMe: false },
   });
 
   const onSubmit = async (data) => {
     if (isSubmitting) return;
-
     setIsSubmitting(true);
     setApiError('');
-
-    const payload = {
-      email: data.email,
-      password: data.password,
-    };
+    const payload = { email: data.email, password: data.password };
 
     try {
-      // 1. Gọi API Đăng nhập
-      const res = await axios.post(API_URL, payload, {
-        withCredentials: true,
-      });
+      const res = await axios.post(API_URL, payload, { withCredentials: true });
 
-      // 2. Xử lý thành công
       if (res.data && res.data.accessToken) {
-        // Tách Access Token và dữ liệu người dùng để truyền vào Context
         const { accessToken, ...userData } = res.data;
 
-        // 🔑 GỌI CONTEXT: Cập nhật trạng thái người dùng toàn cục.
-        // Context sẽ tự gọi toast.success
+        // 1. GỌI CONTEXT: Cập nhật trạng thái
+        // (Hàm login() này sẽ dispatch setCredentials,
+        // và extraReducer của cartSlice sẽ tự động chạy)
         login(userData, accessToken);
 
-        // 🛑 XÓA DÒNG TOAST THỪA NÀY ĐI
-        // toast.success('Đăng nhập thành công! Chào mừng bạn trở lại.', { duration: 1500 }); 
+        // [SỬA] 2. GỠ BỎ DISPATCH THỦ CÔNG
+        // dispatch(clearCartOnLogout()); // <--- ĐÃ XÓA
 
-        // 4. Chuyển hướng người dùng
-        setTimeout(() => {
-          navigate('/');
-        }, 300);
+        // 3. Chuyển hướng
+        setTimeout(() => { navigate('/'); }, 300);
       }
-
     } catch (error) {
-      // 5. Xử lý lỗi từ API
-      const errorMessage = error.response
-        && error.response.data
-        && error.response.data.message
-        ? error.response.data.message
-        : 'Đã có lỗi xảy ra. Vui lòng thử lại.';
-
+      // (Xử lý lỗi giữ nguyên)
+      const errorMessage = error.response?.data?.message || 'Đã có lỗi xảy ra. Vui lòng thử lại.';
       setApiError(errorMessage);
-
-      // Thông báo lỗi bằng Sonner
       toast.error('Đăng nhập thất bại', {
         description: errorMessage,
         duration: 3000,
       });
-
     } finally {
       setIsSubmitting(false);
     }
   };
 
+  // (Toàn bộ JSX return của bạn giữ nguyên)
   return (
     <div className=" bg-gradient-to-br from-indigo-50 via-purple-50 to-pink-50 flex items-center justify-center p-4">
       <div className="w-full max-w-md">
@@ -204,9 +185,7 @@ export default function LoginForm() {
             </Link>
           </p>
         </div>
-
       </div>
-
     </div>
   );
 }

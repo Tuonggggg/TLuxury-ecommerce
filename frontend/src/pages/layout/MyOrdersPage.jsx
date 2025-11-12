@@ -1,8 +1,8 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import api from '@/lib/axios';
-import { Loader2, Package, Eye, XCircle } from 'lucide-react'; // Import XCircle
+import { Loader2, Package, Eye, XCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
 
@@ -114,7 +114,17 @@ const MyOrdersPage = () => {
 
               <div className="space-y-2 text-sm text-gray-700">
                 <p><strong>Ngày đặt:</strong> {formatDate(order.createdAt)}</p>
-                <p><strong>Tổng cộng:</strong> <span className="font-bold text-red-600">{formatCurrency(order.totalPrice)}</span></p>
+
+                {/* ✅ FIX: Sử dụng finalTotal (Tổng tiền cuối cùng) thay vì totalPrice */}
+                <p><strong>Tổng cộng:</strong> <span className="font-bold text-red-600">{formatCurrency(order.finalTotal)}</span></p>
+
+                {/* Hiển thị số tiền giảm nếu có */}
+                {order.discountAmount > 0 && (
+                  <p className="text-sm text-green-600">
+                    (Đã giảm: {formatCurrency(order.discountAmount)})
+                  </p>
+                )}
+
                 <p><strong>Thanh toán:</strong> {order.isPaid ? 'Đã thanh toán' : 'Chưa thanh toán'} ({order.paymentMethod})</p>
               </div>
 
@@ -123,7 +133,7 @@ const MyOrdersPage = () => {
               <div className="flex justify-between items-center pt-2">
                 <p className="text-xs text-gray-500">{order.orderItems.length} sản phẩm</p>
                 <div className="flex items-center space-x-2">
-                  {/* ✅ NÚT HỦY ĐƠN (CHỈ HIỂN THỊ KHI TRẠNG THÁI LÀ PENDING) */}
+                  {/* NÚT HỦY ĐƠN */}
                   {order.orderStatus === 'pending' && (
                     <Button
                       onClick={() => handleCancelOrder(order._id)}
@@ -140,7 +150,7 @@ const MyOrdersPage = () => {
                       Xem chi tiết <Eye className="w-4 h-4" />
                     </Link>
                   </Button>
-                </div>
+                  </div>
               </div>
             </div>
           ))}

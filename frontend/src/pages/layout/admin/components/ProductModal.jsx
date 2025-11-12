@@ -1,3 +1,4 @@
+// File: src/pages/Admin/components/ProductModal.jsx
 import React, { useEffect, useMemo, useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -18,10 +19,9 @@ import {
   DialogTitle,
   DialogFooter,
 } from "@/components/ui/dialog";
-import { Switch } from "@/components/ui/switch";
 import { X, Loader2 } from "lucide-react";
-import { productSchema } from "../schema/productSchema";
 import { toast } from "sonner";
+import { productSchema } from "../schema/productSchema";
 
 const DB_STATUSES = [
   { value: "còn hàng", label: "Còn hàng" },
@@ -41,29 +41,23 @@ const ProductModal = ({
   isSubmitting,
   createProduct,
   updateProduct,
-  setPreviewImages,
-  previewImages,
 }) => {
   const [brands, setBrands] = useState([]);
+  const [previewImages, setPreviewImages] = useState([]);
+  const [selectedFiles, setSelectedFiles] = useState([]);
 
-  // ✅ Fetch danh sách thương hiệu
+  // ✅ Lấy danh sách brand
   useEffect(() => {
     const fetchBrands = async () => {
       try {
         const res = await fetch("http://localhost:5000/api/products/brands");
-        if (!res.ok) throw new Error("Không thể lấy danh sách brand");
         const data = await res.json();
-
         const formatted =
           Array.isArray(data) && typeof data[0] === "string"
             ? data.map((b) => ({ value: b, label: b }))
             : data;
-
         setBrands(formatted);
-      } catch (err) {
-        console.error("❌ Lỗi khi tải brands:", err);
-        toast.error("Không thể tải danh sách thương hiệu");
-        // fallback nếu API lỗi
+      } catch {
         setBrands([
           { value: "Việt Nam", label: "Việt Nam" },
           { value: "Mỹ", label: "Mỹ" },
@@ -71,35 +65,10 @@ const ProductModal = ({
         ]);
       }
     };
-
     fetchBrands();
   }, []);
 
-  // ✅ Default values
-  const defaultValues = useMemo(() => {
-    const product = currentProduct;
-    const defaultCategory = categories[0]?.slug || "";
-    return {
-      name: product?.name || "",
-      description: product?.description || "",
-      category: product?.category?.slug || product?.category || defaultCategory,
-      brand: product?.brand || "",
-      price: String(product?.price || 0),
-      stock: String(product?.stock || 0),
-      discount: String(product?.discount || 0),
-      status: product?.status || "còn hàng",
-      images: product?.images || [],
-      isFlashSale: product?.isFlashSale || false,
-      flashSalePrice: String(product?.flashSalePrice || ""),
-      flashSaleStart: product?.flashSaleStart
-        ? new Date(product.flashSaleStart).toISOString().slice(0, 16)
-        : "",
-      flashSaleEnd: product?.flashSaleEnd
-        ? new Date(product.flashSaleEnd).toISOString().slice(0, 16)
-        : "",
-    };
-  }, [currentProduct, categories]);
-
+  // ✅ Setup form
   const {
     register,
     handleSubmit,
@@ -109,13 +78,10 @@ const ProductModal = ({
     watch,
   } = useForm({
     resolver: zodResolver(productSchema),
-    defaultValues,
   });
 
   const watchedPrice = Number(watch("price")) || 0;
   const watchedDiscount = Number(watch("discount")) || 0;
-  const watchedImages = watch("images");
-  const isFlashSale = watch("isFlashSale");
 
   const finalPrice = useMemo(() => {
     if (watchedDiscount > 0 && watchedDiscount <= 100) {
@@ -124,80 +90,106 @@ const ProductModal = ({
     return watchedPrice;
   }, [watchedPrice, watchedDiscount]);
 
+  // ✅ Khi mở modal => chỉ reset 1 lần
   useEffect(() => {
     if (showModal) {
-      const imageUrls = (currentProduct?.images || []).map((img) =>
-        typeof img === "string" ? img : img.path || ""
-      );
-      setPreviewImages(imageUrls);
-      reset(defaultValues);
+      if (modalMode === "edit" && currentProduct) {
+        const imageUrls = (currentProduct.images || []).map((img) =>
+          typeof img === "string" ? img : img.path || ""
+        );
+        setPreviewImages(imageUrls);
+        reset({
+          name: currentProduct.name || "",
+          description: currentProduct.description || "",
+          category:
+            currentProduct.category?._id ||
+            currentProduct.category ||
+            categories[0]?._id ||
+            "",
+          brand: currentProduct.brand || "",
+          price: String(currentProduct.price || 0),
+          stock: String(currentProduct.stock || 0),
+          discount: String(currentProduct.discount || 0),
+          status: currentProduct.status || "còn hàng",
+        });
+      } else {
+        reset({
+          name: "",
+          description: "",
+          category: categories[0]?._id || "",
+          brand: "",
+          price: "0",
+          stock: "0",
+          discount: "0",
+          status: "còn hàng",
+        });
+        setPreviewImages([]);
+        setSelectedFiles([]);
+      }
     }
-  }, [showModal, currentProduct, defaultValues, reset, setPreviewImages]);
+  }, [showModal]);
 
-  const resetForm = () => {
+  // ✅ Khi chọn ảnh mới
+  const handleImageChange = (e) => {
+    const files = Array.from(e.target.files || []);
+    const newFiles = [...selectedFiles, ...files].slice(0, 5);
+    setSelectedFiles(newFiles);
+
+    const newPreviews = [
+      ...previewImages,
+      ...files.map((f) => URL.createObjectURL(f)),
+    ].slice(0, 5);
+    setPreviewImages(newPreviews);
+  };
+
+  // ✅ Xóa ảnh
+  const removeImage = (index) => {
+    setPreviewImages((prev) => prev.filter((_, i) => i !== index));
+    setSelectedFiles((prev) => prev.filter((_, i) => i !== index));
+  };
+
+  // ✅ Đóng modal
+  const closeModal = () => {
     reset();
     setPreviewImages([]);
+    setSelectedFiles([]);
     setShowModal(false);
   };
 
+  // ✅ Submit
   const onSubmit = async (data) => {
-    data.price = Number(data.price);
-    data.discount = Number(data.discount);
-    data.stock = Number(data.stock);
-    if (data.flashSalePrice) data.flashSalePrice = Number(data.flashSalePrice);
-
-    const imageFiles = Array.from(data.images || []).filter(
-      (item) => item instanceof File
+    const imageFiles = selectedFiles;
+    const existingImages = previewImages.filter(
+      (img) => typeof img === "string"
     );
 
-    const existingImages = (Array.isArray(watchedImages) ? watchedImages : []).filter(
-      (item) => typeof item === "string"
-    );
-
-    let success = false;
     try {
+      let success = false;
       if (modalMode === "create") {
         success = await createProduct(data, imageFiles);
-        if (success) toast.success("🎉 Thêm sản phẩm thành công!");
-        else toast.error("❌ Thêm sản phẩm thất bại!");
       } else {
         success = await updateProduct(
           currentProduct._id,
-          { ...data, existingImages },
-          imageFiles
+          data,
+          imageFiles,
+          existingImages
         );
-        if (success) toast.success("✅ Cập nhật sản phẩm thành công!");
-        else toast.error("❌ Cập nhật thất bại!");
       }
 
-      if (success) resetForm();
+      if (success) {
+        toast.success(
+          modalMode === "create"
+            ? "🎉 Thêm sản phẩm thành công!"
+            : "✅ Cập nhật sản phẩm thành công!"
+        );
+        closeModal();
+      } else {
+        toast.error("❌ Có lỗi xảy ra khi lưu sản phẩm!");
+      }
     } catch (err) {
       console.error(err);
-      toast.error("❌ Có lỗi xảy ra!");
+      toast.error("❌ Lỗi kết nối máy chủ!");
     }
-  };
-
-  const handleImageChange = (e) => {
-    const files = Array.from(e.target.files || []);
-    const existing =
-      Array.isArray(watchedImages) && watchedImages
-        ? watchedImages.filter((i) => typeof i === "string")
-        : [];
-    const newItems = [...existing, ...files].slice(0, 5);
-    setValue("images", newItems);
-    setPreviewImages(
-      newItems.map((i) => (i instanceof File ? URL.createObjectURL(i) : i))
-    );
-  };
-
-  const removeImage = (index) => {
-    const newArr = (Array.isArray(watchedImages) ? watchedImages : []).filter(
-      (_, i) => i !== index
-    );
-    setValue("images", newArr);
-    setPreviewImages(
-      newArr.map((i) => (i instanceof File ? URL.createObjectURL(i) : i))
-    );
   };
 
   return (
@@ -207,7 +199,7 @@ const ProductModal = ({
           <DialogTitle>
             {modalMode === "create"
               ? "Thêm sản phẩm mới"
-              : `Chỉnh sửa: ${currentProduct?.name}`}
+              : `Chỉnh sửa: ${currentProduct?.name || ""}`}
           </DialogTitle>
         </DialogHeader>
 
@@ -233,7 +225,7 @@ const ProductModal = ({
               </SelectTrigger>
               <SelectContent>
                 {categories.map((c) => (
-                  <SelectItem key={c.slug} value={c.slug}>
+                  <SelectItem key={c._id} value={c._id}>
                     {c.name}
                   </SelectItem>
                 ))}
@@ -294,36 +286,10 @@ const ProductModal = ({
             </div>
             <div>
               <Label>Giá sau giảm</Label>
-              <p className="font-bold text-red-600">{formatCurrency(finalPrice)}</p>
+              <p className="font-bold text-red-600">
+                {formatCurrency(finalPrice)}
+              </p>
             </div>
-          </div>
-
-          {/* --- Flash Sale --- */}
-          <div className="border-t pt-3">
-            <div className="flex items-center justify-between">
-              <Label>Bật Flash Sale</Label>
-              <Switch
-                checked={isFlashSale}
-                onCheckedChange={(checked) => setValue("isFlashSale", checked)}
-              />
-            </div>
-
-            {isFlashSale && (
-              <div className="grid grid-cols-2 gap-4 mt-3">
-                <div>
-                  <Label>Giá Flash Sale (VNĐ)</Label>
-                  <Input type="number" {...register("flashSalePrice")} />
-                </div>
-                <div>
-                  <Label>Thời gian bắt đầu</Label>
-                  <Input type="datetime-local" {...register("flashSaleStart")} />
-                </div>
-                <div>
-                  <Label>Thời gian kết thúc</Label>
-                  <Input type="datetime-local" {...register("flashSaleEnd")} />
-                </div>
-              </div>
-            )}
           </div>
 
           {/* --- Trạng thái --- */}
@@ -334,7 +300,7 @@ const ProductModal = ({
               value={watch("status")}
             >
               <SelectTrigger>
-                <SelectValue />
+                <SelectValue placeholder="Chọn trạng thái" />
               </SelectTrigger>
               <SelectContent>
                 {DB_STATUSES.map((s) => (
@@ -379,7 +345,7 @@ const ProductModal = ({
 
           {/* --- Nút --- */}
           <DialogFooter>
-            <Button type="button" variant="outline" onClick={resetForm}>
+            <Button type="button" variant="outline" onClick={closeModal}>
               Hủy
             </Button>
             <Button type="submit" disabled={isSubmitting}>

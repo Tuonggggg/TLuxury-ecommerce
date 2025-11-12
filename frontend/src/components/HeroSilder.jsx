@@ -21,7 +21,7 @@ const HeroSlider = () => {
       title: 'Giảm giá đến 50%',
       subtitle: 'Ưu đãi đặc biệt cho nội thất phòng ngủ và phòng bếp',
       buttonText: 'Xem ưu đãi',
-      buttonLink: '/sale',
+      buttonLink: '/flashsale',
       gradient: 'from-black/70 via-black/30 to-transparent'
     },
     {

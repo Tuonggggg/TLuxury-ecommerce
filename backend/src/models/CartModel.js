@@ -15,7 +15,13 @@ const cartSchema = new mongoose.Schema(
           ref: "Product",
           required: true,
         },
-        qty: { type: Number, required: true, default: 1 },
+        qty: {
+          type: Number,
+          required: true,
+          default: 1,
+          min: 1, // ✅ GIỚI HẠN TỐI THIỂU
+          max: 5, // ✅ GIỚI HẠN TỐI ĐA LÀ 5
+        },
         price: { type: Number, required: true },
       },
     ],

@@ -1,16 +1,15 @@
 import User from "../models/UserModel.js";
+// import {cloudinary}  from "../config/cloudinary.js"; // Không cần dùng nữa, có thể xóa import này
+// Giả định cloudinary được dùng ở nơi khác, nên ta sẽ giữ lại import nhưng loại bỏ logic.
 
-// @desc    Lấy thông tin user hiện tại
-// @route   GET /api/users/profile
-// @access  Private
+// ====================== 🧠 LẤY THÔNG TIN USER ======================
 export const getUserProfile = async (req, res) => {
   try {
     const user = await User.findById(req.user._id).select("-password");
-    if (user) {
-      res.json(user);
-    } else {
-      res.status(404).json({ message: "Không tìm thấy user" });
+    if (!user) {
+      return res.status(404).json({ message: "Không tìm thấy user" });
     }
+    res.json(user);
   } catch (error) {
     res.status(500).json({
       message: "Lỗi khi lấy profile",
@@ -19,36 +18,44 @@ export const getUserProfile = async (req, res) => {
   }
 };
 
-// @desc    Cập nhật thông tin user
-// @route   PUT /api/users/profile
-// @access  Private
+// ====================== 🛠️ CẬP NHẬT THÔNG TIN USER ======================
 export const updateUserProfile = async (req, res) => {
   try {
     const user = await User.findById(req.user._id);
+    if (!user) {
+      return res.status(404).json({ message: "Không tìm thấy user" });
+    } // 🧾 Cập nhật thông tin cơ bản
 
-    if (user) {
-      user.name = req.body.name || user.name;
-      user.email = req.body.email || user.email;
-      user.address = req.body.address || user.address;
-      user.phone = req.body.phone || user.phone; // ✅ thêm dòng này để cập nhật số điện thoại
+    user.username = req.body.username || user.username;
+    user.email = req.body.email || user.email;
+    user.phone = req.body.phone || user.phone;
+    user.address = req.body.address || user.address; // 🔐 Nếu có đổi mật khẩu
 
-      if (req.body.password) {
-        user.password = req.body.password;
-      }
+    if (req.body.password) {
+      user.password = req.body.password;
+    } // 🖼️ LOẠI BỎ LOGIC AVATAR UPLOAD (req.file) // if (req.file) { ... } // 📍 Nếu có toạ độ từ Google Maps
 
-      const updatedUser = await user.save();
+    if (req.body.lat && req.body.lng) {
+      user.location = {
+        type: "Point",
+        coordinates: [parseFloat(req.body.lng), parseFloat(req.body.lat)],
+      };
+    }
 
-      res.json({
+    const updatedUser = await user.save();
+
+    res.json({
+      message: "Cập nhật profile thành công",
+      user: {
         _id: updatedUser._id,
-        name: updatedUser.name,
+        username: updatedUser.username,
         email: updatedUser.email,
         role: updatedUser.role,
-        address: updatedUser.address,
-        phone: updatedUser.phone, // ✅ thêm dòng này để trả về số điện thoại
-      });
-    } else {
-      res.status(404).json({ message: "Không tìm thấy user" });
-    }
+        phone: updatedUser.phone,
+        address: updatedUser.address, // ❌ LOẠI BỎ AVATAR TRONG PHẢN HỒI
+        location: updatedUser.location,
+      },
+    });
   } catch (error) {
     res.status(500).json({
       message: "Lỗi khi cập nhật profile",
@@ -57,9 +64,7 @@ export const updateUserProfile = async (req, res) => {
   }
 };
 
-// @desc    Lấy tất cả user (Admin)
-// @route   GET /api/users
-// @access  Private/Admin
+// ====================== 👑 LẤY DANH SÁCH USER (ADMIN) ======================
 export const getUsers = async (req, res) => {
   try {
     const users = await User.find({}).select("-password");
@@ -72,25 +77,18 @@ export const getUsers = async (req, res) => {
   }
 };
 
-// @desc    Xóa user (Admin)
-// @route   DELETE /api/users/:id
-// @access  Private/Admin
+// ====================== 🗑️ XOÁ USER (ADMIN) ======================
 export const deleteUser = async (req, res) => {
   try {
     const user = await User.findById(req.params.id);
+    if (!user) return res.status(404).json({ message: "User không tồn tại" });
 
-    if (user) {
-      if (user.role === "admin") {
-        return res
-          .status(400)
-          .json({ message: "Không thể xóa tài khoản admin" });
-      }
+    if (user.role === "admin") {
+      return res.status(400).json({ message: "Không thể xóa tài khoản admin" });
+    } // ❌ LOẠI BỎ LOGIC XOÁ ẢNH CŨ TRÊN CLOUDINARY // if (user.avatar?.public_id) { //   await cloudinary.uploader.destroy(user.avatar.public_id); // }
 
-      await user.deleteOne();
-      res.json({ message: "User đã được xóa thành công" });
-    } else {
-      res.status(404).json({ message: "User không tồn tại" });
-    }
+    await user.deleteOne();
+    res.json({ message: "User đã được xóa thành công" });
   } catch (error) {
     res.status(500).json({
       message: "Lỗi khi xóa user",

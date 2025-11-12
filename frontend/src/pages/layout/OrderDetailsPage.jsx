@@ -1,7 +1,7 @@
-import { useEffect, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { toast } from 'sonner';
-import api from '@/lib/axios';
+import api from '@/lib/axios'; // Import axios instance của bạn
 import { Loader2, Package, MapPin, DollarSign, Clock, MessageSquare, XCircle, ChevronLeft } from 'lucide-react';
 import { Separator } from '@/components/ui/separator';
 import { Button } from '@/components/ui/button';
@@ -35,7 +35,7 @@ const OrderDetailsPage = () => {
                 return;
             }
             try {
-                // Gọi API GET /api/orders/:id
+                // Gọi API GET /api/orders/:id (Đã dùng optionalProtect)
                 const { data } = await api.get(`/orders/${id}`);
                 setOrder(data);
             } catch (err) {
@@ -68,7 +68,7 @@ const OrderDetailsPage = () => {
             </div>
         );
     }
-    
+
     const shortId = order._id.substring(0, 8);
     const shippingAddress = order.shippingAddress || {};
 
@@ -88,19 +88,26 @@ const OrderDetailsPage = () => {
                 <div className="bg-white p-6 rounded-xl shadow-md border border-gray-200">
                     <h2 className="text-xl font-semibold mb-3 flex items-center gap-2 text-gray-700"><Clock className="w-5 h-5" /> Thời gian</h2>
                     <p className="text-sm"><strong>Đặt hàng:</strong> {formatDate(order.createdAt)}</p>
-                    <p className="text-sm"><strong>Người đặt:</strong> {order.user.name} ({order.user.email})</p>
+
+                    {/* ✅ FIX 1: KIỂM TRA 'order.user' TRƯỚC KHI TRUY CẬP (ĐỂ HỖ TRỢ GUEST) */}
+                    {order.user ? (
+                        <p className="text-sm"><strong>Người đặt:</strong> {order.user.username || 'N/A'} ({order.user.email})</p>
+                    ) : (
+                        <p className="text-sm"><strong>Người đặt:</strong> Khách vãng lai</p>
+                    )}
+
                     <p className="text-sm"><strong>Thanh toán:</strong> <span className={order.isPaid ? "text-green-600 font-semibold" : "text-red-600 font-semibold"}>{order.isPaid ? 'Đã thanh toán' : 'Chưa thanh toán'}</span></p>
                 </div>
 
-                {/* Cột 2: Địa chỉ giao hàng */}
+                {/* Cột 2: Địa chỉ giao hàng (Giữ nguyên) */}
                 <div className="bg-white p-6 rounded-xl shadow-md border border-gray-200">
                     <h2 className="text-xl font-semibold mb-3 flex items-center gap-2 text-gray-700"><MapPin className="w-5 h-5" /> Giao hàng</h2>
                     <p className="text-sm"><strong>Người nhận:</strong> {shippingAddress.name || shippingAddress.fullName}</p>
                     <p className="text-sm"><strong>SĐT:</strong> {shippingAddress.phone}</p>
                     <p className="text-sm"><strong>Địa chỉ:</strong> {shippingAddress.address}, {shippingAddress.city}</p>
                 </div>
-                
-                {/* Cột 3: Trạng thái thanh toán */}
+
+                {/* Cột 3: Trạng thái thanh toán (Giữ nguyên) */}
                 <div className="bg-white p-6 rounded-xl shadow-md border border-gray-200">
                     <h2 className="text-xl font-semibold mb-3 flex items-center gap-2 text-gray-700"><DollarSign className="w-5 h-5" /> Thanh toán</h2>
                     <p className="text-sm"><strong>Phương thức:</strong> {order.paymentMethod}</p>
@@ -108,8 +115,8 @@ const OrderDetailsPage = () => {
                     {order.paymentResult?.id && <p className="text-xs text-gray-500 mt-1">Mã GD: {order.paymentResult.id}</p>}
                 </div>
             </div>
-            
-            {/* THÔNG TIN GHI CHÚ */}
+
+            {/* THÔNG TIN GHI CHÚ (Giữ nguyên) */}
             {order.note && (
                 <div className="bg-yellow-50 p-4 rounded-xl border border-yellow-200 mb-8">
                     <h3 className="font-semibold text-orange-700 mb-2 flex items-center gap-2">
@@ -122,17 +129,16 @@ const OrderDetailsPage = () => {
             {/* Chi tiết sản phẩm và tổng tiền */}
             <div className="bg-white p-6 rounded-xl shadow-md border border-gray-200">
                 <h2 className="text-xl font-semibold mb-4 border-b pb-2 flex items-center gap-2 text-gray-700"><Package className="w-5 h-5" /> Sản phẩm</h2>
-                
-                {/* Danh sách sản phẩm */}
+
+                {/* Danh sách sản phẩm (Giữ nguyên) */}
                 <div className="space-y-4 mb-6 max-h-96 overflow-y-auto pr-3">
                     {order.orderItems.map((item, index) => (
                         <div key={index} className="flex items-center justify-between border-b last:border-b-0 pb-3">
                             <div className="flex items-center gap-4">
-                                {/* Sử dụng dữ liệu populate (item.product) hoặc fallback về dữ liệu lưu trữ (item.images) */}
-                                <img 
-                                    src={item.product?.images?.[0] || item.images?.[0] || '/images/no-image.jpg'} 
-                                    alt={item.product?.name || item.name} 
-                                    className="w-16 h-16 object-cover rounded-md border" 
+                                <img
+                                    src={item.product?.images?.[0] || item.images?.[0] || '/images/no-image.jpg'}
+                                    alt={item.product?.name || item.name}
+                                    className="w-16 h-16 object-cover rounded-md border"
                                 />
                                 <div>
                                     <p className="font-medium text-gray-800">{item.product?.name || item.name}</p>
@@ -159,10 +165,20 @@ const OrderDetailsPage = () => {
                         <span>Thuế (VAT):</span>
                         <span className="font-medium">{formatCurrency(order.taxPrice)}</span>
                     </div>
+
+                    {/* ✅ FIX 2: THÊM DÒNG GIẢM GIÁ */}
+                    {order.discountAmount > 0 && (
+                        <div className="flex justify-between text-green-600">
+                            <span>Giảm giá (Voucher):</span>
+                            <span className="font-medium">-{formatCurrency(order.discountAmount)}</span>
+                        </div>
+                    )}
+
                     <Separator />
                     <div className="flex justify-between text-xl pt-2">
                         <span className="font-bold">TỔNG THANH TOÁN:</span>
-                        <span className="font-bold text-red-600">{formatCurrency(order.totalPrice)}</span>
+                        {/* ✅ FIX 3: SỬA THÀNH finalTotal */}
+                        <span className="font-bold text-red-600">{formatCurrency(order.finalTotal)}</span>
                     </div>
                 </div>
             </div>

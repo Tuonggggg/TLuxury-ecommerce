@@ -180,7 +180,7 @@ const useProducts = () => {
     Array.from(imageFiles || []).forEach((image) => {
       formData.append("images", image);
     });
-    (existingImages || []).forEach((url) => formData.append("images", url));
+    (existingImages || []).forEach((url) => formData.append("existingImages", url));
 
     try {
       await api.put(`/products/${productId}`, formData, {

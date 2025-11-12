@@ -2,11 +2,15 @@
 import crypto from "crypto";
 import moment from "moment";
 
-// 🚨 Cấu hình VNPAY (THAY THẾ BẰNG THÔNG TIN THẬT CỦA BẠN)
-const VNP_TMN_CODE = "YOUR_VNP_TMN_CODE"; // Mã Terminal
-const VNP_HASH_SECRET = "YOUR_VNP_HASH_SECRET"; // Secret Key
-const VNP_URL = "https://sandbox.vnpayment.vn/paymentv2/vpcpay.html"; // URL Sandbox
-const VNP_RETURN_URL = "http://YOUR_BACKEND_URL/api/orders/vnpay-callback"; // URL Backend cho Return URL
+// 🚨 Cấu hình VNPAY (LẤY TỪ BIẾN MÔI TRƯỜNG)
+const VNP_TMN_CODE = process.env.VNP_TMN_CODE; // Mã Terminal
+const VNP_HASH_SECRET = process.env.VNP_HASH_SECRET; // Secret Key
+const VNP_URL = "https://sandbox.vnpayment.vn/paymentv2/vpcpay.html"; // URL Sandbox (có thể đặt trong env nếu muốn)
+
+// Tự động tạo Return URL từ NGROK_PUBLIC_URL 
+// Phải dùng process.env.NGROK_PUBLIC_URL đã được bạn cấu hình trong .env
+const VNP_RETURN_URL = `${process.env.NGROK_PUBLIC_URL}/api/orders/vnpay-callback`; 
+
 
 // Hàm tạo yêu cầu thanh toán VNPAY (Bước 1)
 export const createVnPayPayment = ({ orderId, amount, orderInfo, ipAddr }) => {
@@ -23,40 +27,50 @@ export const createVnPayPayment = ({ orderId, amount, orderInfo, ipAddr }) => {
     vnp_Params["vnp_TxnRef"] = txnRef;
     vnp_Params["vnp_OrderInfo"] = orderInfo;
     vnp_Params["vnp_OrderType"] = "other";
-    vnp_Params["vnp_Amount"] = amount * 100; // VNPAY yêu cầu số tiền tính bằng đơn vị nhỏ nhất (cent/xu)
+    vnp_Params["vnp_Amount"] = amount * 100;
     vnp_Params["vnp_ReturnUrl"] = VNP_RETURN_URL;
     vnp_Params["vnp_IpAddr"] = ipAddr;
     vnp_Params["vnp_CreateDate"] = createDate;
+    
+    // 💡 THÊM THAM SỐ VNPAYQR CHO CHỨC NĂNG THANH TOÁN QR
+    // vnp_Params["vnp_BankCode"] = "VNPAYQR";
 
     // 1. Sắp xếp các tham số và tạo chuỗi Hash
     vnp_Params = sortObject(vnp_Params);
     
+    // ... (logic tạo Secure Hash và trả về URL giữ nguyên)
     const signData = new URLSearchParams(vnp_Params).toString();
+    console.log('🚀 ~ createVnPayPayment ~ signData:', signData)
     const hmac = crypto.createHmac("sha512", VNP_HASH_SECRET);
+    console.log('🚀 ~ createVnPayPayment ~ hmac:', hmac)
     const signed = hmac.update(signData).digest("hex");
+    console.log('🚀 ~ createVnPayPayment ~ signed:', signed)
     
     // 2. Thêm chữ ký vào tham số
     vnp_Params["vnp_SecureHash"] = signed;
+    console.log('🚀 ~ createVnPayPayment ~ vnp_Params:', vnp_Params)
 
     // 3. Tạo URL chuyển hướng
     return VNP_URL + "?" + new URLSearchParams(vnp_Params).toString();
 };
 
 
-// Hàm xác thực chữ ký (Secure Hash) của VNPAY (Bước 3 - Trong vnpayCallback)
+// Hàm xác thực chữ ký (Secure Hash) của VNPAY (verifyVnPayReturn)
+// HÀM NÀY GIỮ NGUYÊN VÌ ĐÃ SỬ DỤNG VNP_HASH_SECRET TỪ BIẾN MÔI TRƯỜNG Ở PHẠM VI TRÊN
+
 export const verifyVnPayReturn = (vnp_Params) => {
     const secureHash = vnp_Params['vnp_SecureHash'];
 
     // 1. Xóa trường SecureHash để tạo lại chuỗi hash
     delete vnp_Params['vnp_SecureHash'];
-    delete vnp_Params['vnp_HashType']; // Trường này cũng không tính vào hash
+    delete vnp_Params['vnp_HashType']; 
 
     // 2. Sắp xếp và tạo chuỗi hash
     const sortedParams = sortObject(vnp_Params);
     const signData = new URLSearchParams(sortedParams).toString();
     
     // 3. Tái tạo chữ ký bằng SECRET KEY
-    const hmac = crypto.createHmac("sha512", VNP_HASH_SECRET);
+    const hmac = crypto.createHmac("sha512", VNP_HASH_SECRET); // Sử dụng biến môi trường đã khai báo ở trên
     const signed = hmac.update(signData).digest("hex");
 
     const orderId = vnp_Params['vnp_TxnRef'];
@@ -74,7 +88,7 @@ export const verifyVnPayReturn = (vnp_Params) => {
 };
 
 
-// Helper function: Hàm sắp xếp đối tượng theo key (Quan trọng cho VNPAY)
+// Helper function: Hàm sắp xếp đối tượng theo key (Giữ nguyên)
 function sortObject(obj) {
     let sorted = {};
     let str = [];

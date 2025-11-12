@@ -6,11 +6,13 @@ import {
   updateProduct,
   deleteProduct,
   getFlashSaleProducts,
-  getBrands
+  getBrands,
 } from "../controllers/ProductController.js";
 
-import { protect } from "../middlewares/AuthMiddleware.js";
-import { authorizeRoles } from "../middlewares/RoleMiddleware.js";
+// ✅ FIX: Lấy cả hai hàm từ cùng một file AuthMiddleware.js
+import { protect, authorizeRoles } from "../middlewares/AuthMiddleware.js";
+// ❌ (Đã loại bỏ import từ RoleMiddleware.js)
+
 import { validate } from "../middlewares/ValidateMiddleware.js";
 import {
   createProductSchema,
@@ -21,23 +23,24 @@ import upload from "../middlewares/UploadMiddleware.js";
 const router = express.Router();
 
 /* ============================================================
-   ⚡ FLASH SALE (phải đặt TRƯỚC :id để tránh nhầm route)
-   ============================================================ */
-router.get("/flashsale", getFlashSaleProducts); // ✅ thêm dòng này
+   ⚡ FLASH SALE (phải đặt TRƯỚC :id để tránh nhầm route)
+   ============================================================ */
+router.get("/flashsale", getFlashSaleProducts);
 
 /* ============================================================
-   🔹 PUBLIC ROUTES
-   ============================================================ */
+   🔹 PUBLIC ROUTES
+   ============================================================ */
 router.get("/brands", getBrands);
 router.get("/", getProducts);
 router.get("/:id", getProductById);
+
 /* ============================================================
-   🔸 ADMIN ROUTES
-   ============================================================ */
+   🔸 ADMIN ROUTES
+   ============================================================ */
 router.post(
   "/",
   protect,
-  authorizeRoles("admin"),
+  authorizeRoles("admin"), // ✅ Hàm này giờ đã được import đúng
   (req, res, next) => {
     upload.array("images", 5)(req, res, (err) => {
       if (err) {
@@ -57,7 +60,7 @@ router.post(
 router.put(
   "/:id",
   protect,
-  authorizeRoles("admin"),
+  authorizeRoles("admin"), // ✅ Hàm này giờ đã được import đúng
   upload.array("images", 10),
   (req, res, next) => {
     if (!req.body.slug) req.body.slug = req.body.slug_text || "";
@@ -67,6 +70,6 @@ router.put(
   updateProduct
 );
 
-router.delete("/:id", protect, authorizeRoles("admin"), deleteProduct);
+router.delete("/:id", protect, authorizeRoles("admin"), deleteProduct); // ✅ Hàm này giờ đã được import đúng
 
 export default router;

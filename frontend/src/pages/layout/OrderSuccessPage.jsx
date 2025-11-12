@@ -56,7 +56,7 @@ const OrderSuccessPage = () => {
                     </div>
                 </>
             ) : (
-                <p className="text-red-500">Không thể tìm thấy thông tin đơn hàng.</p>
+                <p className="text-primary">Vui lòng kiểm tra email để xem chi tiết.</p>
             )}
         </div>
     );

@@ -115,7 +115,7 @@ const OrderManagement = () => {
             </h2>
 
             <div className="bg-white p-5 rounded-xl border shadow-sm space-y-4">
-                {/* Filter */}
+                {/* Filter (Giữ nguyên) */}
                 <div className="flex items-center gap-3">
                     <Select value={selectedStatus} onValueChange={setSelectedStatus}>
                         <SelectTrigger className="w-[200px]">
@@ -156,8 +156,11 @@ const OrderManagement = () => {
                             <TableBody>
                                 {orders.map((order) => {
                                     // Lấy số điện thoại: ưu tiên user.phone, fallback shippingAddress.phone
-                                    const phone =
-                                        order.user?.phone || order.shippingAddress?.phone || "—";
+                                    const phone = order.user?.phone || order.shippingAddress?.phone || "—";
+
+                                    // ✅ FIX 1: LẤY TÊN KHÁCH HÀNG (Ưu tiên username, fallback shippingAddress.name)
+                                    const customerName = order.user?.username || order.shippingAddress?.name || "Khách vãng lai";
+
                                     return (
                                         <React.Fragment key={order._id}>
                                             <TableRow className="hover:bg-gray-50 transition-all">
@@ -179,7 +182,7 @@ const OrderManagement = () => {
                                                         {order._id.slice(0, 8)}...
                                                     </Link>
                                                 </TableCell>
-                                                <TableCell>{order.user?.username || "Khách"}</TableCell>
+                                                <TableCell>{customerName}</TableCell>
 
                                                 {/* Hiển thị SĐT, là link tel: nếu có */}
                                                 <TableCell>
@@ -192,18 +195,14 @@ const OrderManagement = () => {
                                                     )}
                                                 </TableCell>
 
-                                                <TableCell>{formatCurrency(order.totalPrice)}</TableCell>
+                                                {/* ✅ FIX 3: SỬ DỤNG 'finalTotal' */}
+                                                <TableCell className="font-semibold text-red-600">{formatCurrency(order.finalTotal)}</TableCell>
+
                                                 <TableCell>
                                                     <span
-                                                        className={`px-3 py-1 text-xs font-medium rounded-full ${ORDER_STATUSES.find((s) => s.value === order.orderStatus)
-                                                                ?.color || "bg-gray-100 text-gray-700"
-                                                            }`}
+                                                        className={`px-3 py-1 text-xs font-medium rounded-full ${ORDER_STATUSES.find((s) => s.value === order.orderStatus)?.color || "bg-gray-100 text-gray-700"}`}
                                                     >
-                                                        {
-                                                            ORDER_STATUSES.find(
-                                                                (s) => s.value === order.orderStatus
-                                                            )?.label
-                                                        }
+                                                        {ORDER_STATUSES.find((s) => s.value === order.orderStatus)?.label}
                                                     </span>
                                                 </TableCell>
                                                 <TableCell>{order.paymentMethod}</TableCell>
@@ -268,7 +267,36 @@ const OrderManagement = () => {
                                                                 </div>
                                                             ))}
 
+                                                            {/* Bảng tổng hợp giá */}
+                                                            <div className="ml-auto w-full md:w-1/2 mt-4 space-y-1 text-sm">
+                                                                <div className="flex justify-between">
+                                                                    <span className="text-gray-600">Tổng tiền hàng:</span>
+                                                                    <span className="font-medium">{formatCurrency(order.itemsPrice)}</span>
+                                                                </div>
+                                                                <div className="flex justify-between">
+                                                                    <span className="text-gray-600">VAT ({Math.round(order.taxPrice / order.itemsPrice * 100)}%):</span>
+                                                                    <span className="font-medium">{formatCurrency(order.taxPrice)}</span>
+                                                                </div>
+
+                                                                {/* Dòng giảm giá */}
+                                                                {order.discountAmount > 0 && (
+                                                                    <div className="flex justify-between text-green-600 font-medium">
+                                                                        <span>Giảm giá ({order.voucherCode}):</span>
+                                                                        <span>— {formatCurrency(order.discountAmount)}</span>
+                                                                    </div>
+                                                                )}
+
+                                                                <div className="flex justify-between border-t pt-2 text-base font-bold">
+                                                                    <span>Thanh toán:</span>
+                                                                    <span className="text-red-600">{formatCurrency(order.finalTotal)}</span>
+                                                                </div>
+                                                            </div>
+
                                                             <div className="text-xs text-gray-600 border-t pt-2 space-y-1">
+                                                                <p>
+                                                                    {/* ✅ FIX 5: Hiển thị tên khách (ưu tiên username, fallback shippingAddress.name) */}
+                                                                    <strong>Tên khách: </strong>{order.user?.username || order.shippingAddress?.name || "Khách"}
+                                                                </p>
                                                                 <p>
                                                                     <strong>Địa chỉ:</strong>{" "}
                                                                     {order.shippingAddress?.address || "—"},{" "}
@@ -277,7 +305,7 @@ const OrderManagement = () => {
 
                                                                 {/* Hiển thị SĐT chi tiết */}
                                                                 <p>
-                                                                    <strong>SĐT Khách:</strong>{" "}
+                                                                    <strong>SĐT khách:</strong>{" "}
                                                                     {phone !== "—" ? (
                                                                         <a href={`tel:${phone}`} className="text-blue-600 hover:underline">
                                                                             {phone}

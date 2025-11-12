@@ -39,14 +39,6 @@ const getStatusLabel = (value) => {
   return DB_STATUSES.find((s) => s.value === value)?.label || value;
 };
 
-// ✅ FIX 2: Sửa 'enabled' thành 'isActive' (Khớp với ProductModel)
-const isFlashSaleActive = (flashSale) => {
-  if (!flashSale?.isActive) return false; // 👈 Sửa lỗi ở đây
-  const now = new Date();
-  return (
-    new Date(flashSale.startTime) <= now && new Date(flashSale.endTime) >= now
-  );
-};
 
 const ProductTable = ({
   products,
@@ -101,7 +93,6 @@ const ProductTable = ({
               <TableHead>Thương hiệu</TableHead>
               <TableHead className="w-[80px] text-center">Giảm giá</TableHead>
               <TableHead className="w-[180px]">Giá bán</TableHead>
-              <TableHead className="w-[140px] text-center">Flash Sale</TableHead>
               <TableHead className="w-[70px]">Tồn kho</TableHead>
               <TableHead className="w-[100px]">Trạng thái</TableHead>
               <TableHead className="w-[70px]">Đã bán</TableHead>
@@ -112,8 +103,6 @@ const ProductTable = ({
 
           <TableBody className="divide-y divide-gray-100">
             {products.map((product) => {
-              const activeFlashSale = isFlashSaleActive(product.flashSale);
-              const flash = product.flashSale;
 
               return (
                 <TableRow
@@ -170,34 +159,6 @@ const ProductTable = ({
                     </span>
                   </TableCell>
 
-                  {/* ⚡ Flash Sale */}
-                  <TableCell className="text-center text-sm">
-                    {flash?.isActive ? ( // ✅ Sửa: Kiểm tra isActive
-                      <div
-                        className={`rounded-md p-1 border ${activeFlashSale
-                          ? "bg-orange-100 border-orange-400 text-orange-700"
-                          : "bg-gray-100 border-gray-300 text-gray-500"
-                          }`}
-                      >
-                        <div className="flex items-center justify-center gap-1 font-medium">
-                          <Zap className="w-4 h-4" />
-                          {activeFlashSale ? "Đang diễn ra" : "Sắp tới / Hết hạn"}
-                        </div>
-                        <div className="text-xs">
-                          Giá:{" "}
-                          <span className="font-semibold text-red-600">
-                            {formatCurrency(flash.flashPrice)} {/* ✅ Sửa: Dùng flashPrice */}
-                          </span>
-                        </div>
-                        <div className="text-[10px] mt-0.5">
-                          {flash.startTime?.slice(0, 16)} →{" "}
-                          {flash.endTime?.slice(0, 16)}
-                        </div>
-                      </div>
-                    ) : (
-                      <span className="text-gray-400">—</span>
-                    )}
-                  </TableCell>
 
                   <TableCell className="font-medium">{product.stock}</TableCell>
 

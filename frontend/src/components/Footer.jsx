@@ -146,9 +146,6 @@ const Footer = () => {
                   MASTERCARD
                 </div>
                 <div className="bg-background border border-border rounded px-3 py-1 text-xs font-semibold text-foreground">
-                  MOMO
-                </div>
-                <div className="bg-background border border-border rounded px-3 py-1 text-xs font-semibold text-foreground">
                   VNPAY
                 </div>
               </div>
@@ -162,6 +159,7 @@ const Footer = () => {
         <div className="max-w-7xl mx-auto px-4 py-4">
           <div className="flex flex-col md:flex-row justify-between items-center text-xs text-muted-foreground">
             <p>© {new Date().getFullYear()} TLuxury. All rights reserved.</p>
+            <p>KHÓA LUẬN TỐT NGHIỆP - HTTUONG</p>
             <div className="flex space-x-6 mt-2 md:mt-0">
               <a href="#" className="hover:text-primary transition-colors">
                 Điều khoản sử dụng

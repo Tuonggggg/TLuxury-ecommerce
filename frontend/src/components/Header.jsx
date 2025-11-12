@@ -14,7 +14,10 @@ import { Link, useNavigate } from "react-router-dom";
 import Navbar from "./Navbar";
 import { useAuth } from '@/hooks/useAuth';
 
-// Component con: SearchInput (Không export)
+// ✅ 1. IMPORT TỪ REDUX
+import { useSelector } from 'react-redux';
+
+// Component con: SearchInput (Không đổi)
 const SearchInput = ({ searchQuery, setSearchQuery, handleSearch, handleClearSearch, isMobile = false }) => (
     <div className={`flex-1 relative ${isMobile ? "mt-3 w-full" : "max-w-xl mx-4 lg:mx-6"}`}>
         <Input
@@ -41,7 +44,7 @@ const SearchInput = ({ searchQuery, setSearchQuery, handleSearch, handleClearSea
     </div>
 );
 
-// Component con: UserDropdown (Đã sửa đường dẫn)
+// Component con: UserDropdown (Không đổi)
 const UserDropdown = ({ user, handleLogout, PRIMARY_COLOR_HOVER }) => {
     const userName = user.username || user.email.split('@')[0] || "Tài khoản";
 
@@ -60,9 +63,7 @@ const UserDropdown = ({ user, handleLogout, PRIMARY_COLOR_HOVER }) => {
                     Xin chào, {userName}
                 </DropdownMenuLabel>
                 <DropdownMenuSeparator />
-                {/* Đã sửa: Link hồ sơ người dùng */}
                 <Link to="/account/profile"><DropdownMenuItem><Settings className="mr-2 h-4 w-4" /><span>Thông tin cá nhân</span></DropdownMenuItem></Link>
-                {/* Đã sửa: Link lịch sử đơn hàng */}
                 <Link to="/my-orders"><DropdownMenuItem><History className="mr-2 h-4 w-4" /><span>Lịch sử đơn hàng</span></DropdownMenuItem></Link>
                 <Link to="/favorites"><DropdownMenuItem><Heart className="mr-2 h-4 w-4" /><span>Sản phẩm yêu thích</span></DropdownMenuItem></Link>
                 <DropdownMenuSeparator />
@@ -83,6 +84,12 @@ const Header = () => {
     const navigate = useNavigate();
     const PRIMARY_COLOR_HOVER = "hover:text-primary";
 
+    // ✅ 2. LẤY SỐ LƯỢNG TỪ REDUX STORE
+    // (Tính tổng số lượng 'quantity' từ mảng 'cartItems' trong state 'cart')
+    const cartCount = useSelector((state) =>
+        state.cart.cartItems.reduce((total, item) => total + item.quantity, 0)
+    );
+
     const handleClearSearch = () => setSearchQuery("");
 
     const handleSearch = (e) => {
@@ -93,6 +100,7 @@ const Header = () => {
     };
 
     const handleLogout = async () => {
+        // Logic logout (đã chính xác)
         await logout();
         navigate("/account/login");
     };
@@ -116,10 +124,19 @@ const Header = () => {
                         <Phone className="w-4 h-4 md:w-5 md:h-5 text-primary" />
                         <span>Gọi đặt hàng: <span className="font-semibold text-red-500 whitespace-nowrap">0919999999</span></span>
                     </a>
-                    <Link to="/cart" className={`hidden md:flex flex-col items-center p-2 rounded-lg transition-colors text-gray-700 ${PRIMARY_COLOR_HOVER} group`}>
+
+                    {/* ✅ 3. SỬA LẠI ICON GIỎ HÀNG */}
+                    <Link to="/cart" className={`relative hidden md:flex flex-col items-center p-2 rounded-lg transition-colors text-gray-700 ${PRIMARY_COLOR_HOVER} group`}>
                         <ShoppingCart className="w-7 h-7" />
+                        {/* Hiển thị số lượng từ Redux (cartCount) */}
+                        {cartCount > 0 && (
+                            <span className="absolute top-0 right-1 bg-red-600 text-white text-xs font-bold w-5 h-5 rounded-full flex items-center justify-center border-2 border-white">
+                                {cartCount > 99 ? '99+' : cartCount}
+                            </span>
+                        )}
                         <span className="text-xs font-medium text-gray-600 group-hover:text-primary transition-colors mt-0.5">Giỏ hàng</span>
                     </Link>
+
                     {user ? (
                         <UserDropdown user={user} handleLogout={handleLogout} PRIMARY_COLOR_HOVER={PRIMARY_COLOR_HOVER} />
                     ) : (

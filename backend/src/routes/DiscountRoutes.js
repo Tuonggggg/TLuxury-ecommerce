@@ -1,15 +1,22 @@
-import express from 'express';
-import { applyDiscount } from '../controllers/DiscountController.js'; 
-// Giả định API này không cần bảo vệ bằng 'protect' để guest có thể sử dụng
-// Nếu bạn muốn user phải đăng nhập, thêm middleware protect vào đây
+import express from "express";
+import {
+  applyDiscount,
+  createDiscount, // Import hàm mới
+  updateDiscount, // Import hàm mới
+  deleteDiscount, // Import hàm mới
+  getDiscounts, // Import hàm mới
+} from "../controllers/DiscountController.js";
+import { protect, authorizeRoles } from "../middlewares/AuthMiddleware.js";
 
 const router = express.Router();
 
-// Route: POST /api/discounts/apply
-router.post('/apply', applyDiscount); 
+// PUBLIC/USER: Áp dụng mã
+router.post("/apply", applyDiscount);
+
+// 🔒 ADMIN: CRUD
+router.get("/", protect, authorizeRoles("admin"), getDiscounts); // Lấy tất cả mã
+router.post("/", protect, authorizeRoles("admin"), createDiscount); // Tạo mã mới
+router.put("/:id", protect, authorizeRoles("admin"), updateDiscount); // Cập nhật mã
+router.delete("/:id", protect, authorizeRoles("admin"), deleteDiscount); // Xóa mã
 
 export default router;
-
-// ⚠️ Đảm bảo bạn thêm dòng này vào file server chính (server.js/index.js):
-// import discountRoutes from './routes/DiscountRoutes.js';
-// app.use('/api/discounts', discountRoutes);

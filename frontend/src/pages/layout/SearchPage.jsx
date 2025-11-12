@@ -1,8 +1,13 @@
 import { useEffect, useState } from "react";
-import { useLocation } from "react-router-dom";
-import api from "@/lib/axios"; // ✅ dùng axios instance đã cấu hình baseURL
+import { useLocation } from "react-router-dom"; // [GUEST] Import useNavigate
+import api from "@/lib/axios";
 import ProductCard from "@/components/ProductCard";
-import { Loader2 } from "lucide-react"; // Thêm icon loading
+import { Loader2 } from "lucide-react";
+import { toast } from "sonner"; // [GUEST] Import toast
+
+// [GUEST] 1. Import Redux
+import { useDispatch, useSelector } from "react-redux";
+import { addToGuestCart } from "@/store/slices/cartSlice";
 
 const SearchPage = () => {
   const location = useLocation();
@@ -11,24 +16,24 @@ const SearchPage = () => {
 
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [isAddingToCart, setIsAddingToCart] = useState({}); // [GUEST] 3. Thêm state loading giỏ hàng
+
+  // [GUEST] 4. Khởi tạo Redux
+  const dispatch = useDispatch();
+  const { userInfo } = useSelector((state) => state.auth);
 
   useEffect(() => {
     const fetchProducts = async () => {
       setLoading(true);
       try {
-        // ✅ Gọi API từ backend 
         const { data } = await api.get(`/products?search=${encodeURIComponent(query)}`);
-
-        // 🚨 ĐÃ TỐI ƯU: Truy cập mảng sản phẩm qua khóa 'products' từ cấu trúc Backend { products: [...] }
         const safeData = Array.isArray(data.products) ? data.products : [];
 
-        // Nếu API trả về mảng trực tiếp (trường hợp cũ), ta cũng xử lý được.
         if (Array.isArray(data) && !data.products) {
           setProducts(data);
         } else {
           setProducts(safeData);
         }
-
       } catch (error) {
         console.error("Search error:", error);
         setProducts([]);
@@ -38,8 +43,46 @@ const SearchPage = () => {
     };
 
     if (query) fetchProducts();
-    else setProducts([]); // Xóa kết quả nếu query rỗng
+    else setProducts([]);
   }, [query]);
+
+  // =======================================================
+  // [GUEST] 5. HÀM ADD TO CART "THÔNG MINH"
+  // =======================================================
+  const handleAddToCart = async (productToAdd, qty = 1) => {
+    const productId = productToAdd._id;
+
+    if (productToAdd.stock === 0) {
+      toast.error(`"${productToAdd.name}" đã hết hàng.`);
+      return;
+    }
+
+    setIsAddingToCart(prev => ({ ...prev, [productId]: true }));
+
+    try {
+      // [GUEST] Phân luồng
+      if (userInfo) {
+        // ----- LOGIC CHO USER (API) -----
+        const payload = { productId: productId, qty: qty };
+        await api.post("/cart", payload);
+      } else {
+        // ----- LOGIC CHO KHÁCH (REDUX) -----
+        dispatch(addToGuestCart({ product: productToAdd, qty: qty }));
+      }
+
+      // Cập nhật tồn kho (Stock - qty) trên FE
+      setProducts(prevProducts => prevProducts.map(p =>
+        p._id === productId ? { ...p, stock: p.stock - qty } : p
+      ));
+
+    } catch (error) {
+      const errorMessage = error.response?.data?.message || "Lỗi kết nối hoặc phiên đăng nhập đã hết hạn.";
+      toast.error("Thêm vào giỏ hàng thất bại.", { description: errorMessage });
+    } finally {
+      setIsAddingToCart(prev => ({ ...prev, [productId]: false }));
+    }
+  };
+
 
   return (
     <div className="max-w-7xl mx-auto px-4 py-8 md:px-8">
@@ -58,9 +101,15 @@ const SearchPage = () => {
       ) : (
         <div>
           <p className="text-sm text-gray-600 mb-4">Tìm thấy <span className="font-semibold">{products.length}</span> kết quả:</p>
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4 md:gap-6">
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-3 gap-4 md:gap-6">
             {products.map((product) => (
-              <ProductCard key={product._id} product={product} />
+              // [GUEST] 6. Truyền props vào ProductCard
+              <ProductCard
+                key={product._id}
+                product={product}
+                onAddToCart={handleAddToCart}
+                isPending={!!isAddingToCart[product._id]}
+              />
             ))}
           </div>
         </div>

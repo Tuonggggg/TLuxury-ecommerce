@@ -14,7 +14,11 @@ import {
   CarouselPrevious,
 } from "@/components/ui/carousel";
 
-// ... (Giữ nguyên HOME_CATEGORIES và SectionHeader) ...
+// [GUEST] Import hooks từ Redux
+import { useDispatch, useSelector } from "react-redux";
+// [GUEST] Import action từ cartSlice
+// (Đảm bảo đường dẫn này chính xác với cấu trúc thư mục của bạn)
+import { addToGuestCart } from "@/store/slices/cartSlice";
 
 const HOME_CATEGORIES = [
   { slug: "phong-khach", title: "Phòng Khách" },
@@ -36,14 +40,17 @@ const SectionHeader = ({ title, onViewAll }) => (
   </div>
 );
 
-
 const HomePage = () => {
-  // ... (Giữ nguyên tất cả state, useEffect, và hàm handleAddToCart) ...
   const navigate = useNavigate();
   const [categorizedProducts, setCategorizedProducts] = useState({});
   const [flashSaleProducts, setFlashSaleProducts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [isAddingToCart, setIsAddingToCart] = useState({});
+
+  // [GUEST] Lấy dispatch và trạng thái đăng nhập từ Redux
+  const dispatch = useDispatch();
+  // (Giả sử slice của bạn tên là 'auth')
+  const { userInfo } = useSelector((state) => state.auth);
 
   useEffect(() => {
     const fetchAllData = async () => {
@@ -80,6 +87,9 @@ const HomePage = () => {
 
   const getProductsBySlug = (slug) => categorizedProducts[slug] || [];
 
+  // =======================================================
+  // [GUEST] HÀM handleAddToCart ĐÃ ĐƯỢC CẬP NHẬT
+  // =======================================================
   const handleAddToCart = async (productToAdd) => {
     const productId = productToAdd._id;
 
@@ -91,44 +101,56 @@ const HomePage = () => {
     setIsAddingToCart((prev) => ({ ...prev, [productId]: true }));
 
     try {
-      const payload = {
-        productId: productId,
-        qty: 1,
-      };
-      await api.post("/cart", payload);
+      // [GUEST] KIỂM TRA XEM USER ĐÃ ĐĂNG NHẬP HAY CHƯA
+      if (userInfo) {
+        // ----- TRƯỜNG HỢP 1: USER ĐÃ ĐĂNG NHẬP (Logic cũ) -----
+        const payload = {
+          productId: productId,
+          qty: 1,
+        };
+        // Gọi API để lưu vào giỏ hàng DB
+        await api.post("/cart", payload);
 
-      toast.success(`Đã thêm vào giỏ hàng!`, {
-        description: `1 x ${productToAdd.name} đã được thêm thành công.`,
-        action: {
-          label: "Xem giỏ",
-          onClick: () => navigate("/cart"),
-        },
-      });
+        toast.success(`Đã thêm vào giỏ hàng!`, {
+          description: `1 x ${productToAdd.name} đã được thêm thành công.`,
+          action: {
+            label: "Xem giỏ",
+            onClick: () => navigate("/cart"),
+          },
+        });
 
-      setFlashSaleProducts((prevProducts) =>
-        prevProducts.map((p) => (p._id === productId ? { ...p, stock: p.stock - 1 } : p))
-      );
-      setCategorizedProducts((prevCategories) => {
-        const newCategories = { ...prevCategories };
-        for (const slug in newCategories) {
-          newCategories[slug] = newCategories[slug].map((p) =>
-            p._id === productId ? { ...p, stock: p.stock - 1 } : p
-          );
-        }
-        return newCategories;
-      });
+        // Cập nhật stock ở UI (tạm thời)
+        setFlashSaleProducts((prevProducts) =>
+          prevProducts.map((p) => (p._id === productId ? { ...p, stock: p.stock - 1 } : p))
+        );
+        setCategorizedProducts((prevCategories) => {
+          const newCategories = { ...prevCategories };
+          for (const slug in newCategories) {
+            newCategories[slug] = newCategories[slug].map((p) =>
+              p._id === productId ? { ...p, stock: p.stock - 1 } : p
+            );
+          }
+          return newCategories;
+        });
+      } else {
+        // ----- TRƯỜNG HỢP 2: KHÁCH VÃNG LAI (Logic mới) -----
+        // Gọi action Redux, action này sẽ tự xử lý logic
+        // (kiểm tra tồn kho, giới hạn mua, lưu vào localStorage)
+        dispatch(addToGuestCart({ product: productToAdd, qty: 1 }));
+      }
     } catch (error) {
+      // Catch lỗi (chỉ xảy ra nếu user đăng nhập và api.post thất bại)
       console.error("Lỗi khi thêm vào giỏ hàng:", error);
       const errorMessage = error.response?.data?.message || "Lỗi kết nối hoặc phiên đăng nhập đã hết hạn.";
       toast.error("Thêm vào giỏ hàng thất bại.", { description: errorMessage });
     } finally {
+      // Tắt loading cho dù thành công hay thất bại
       setIsAddingToCart((prev) => ({ ...prev, [productId]: false }));
     }
   };
 
-  // ✅ CẬP NHẬT ProductCarousel Component
+  // ✅ CẬP NHẬT ProductCarousel Component (Không đổi)
   const ProductCarousel = ({ products, onAddToCart, isAddingToCart }) => {
-    // ✅ THAY ĐỔI: Hiển thị mũi tên nếu có nhiều hơn 3 sản phẩm
     const showArrows = products.length > 3;
 
     return (
@@ -144,8 +166,6 @@ const HomePage = () => {
             {products.map((p) => (
               <CarouselItem
                 key={p._id}
-                // ✅ THAY ĐỔI: Xóa 'lg:basis-1/4' để 'sm:basis-1/3' được áp dụng cho cả màn hình lớn
-                // Giờ sẽ là: 2 sản phẩm (mặc định), 3 sản phẩm (từ 'sm' trở lên)
                 className="pl-6 basis-1/2 sm:basis-1/3"
               >
                 <ProductCard
@@ -157,7 +177,6 @@ const HomePage = () => {
             ))}
           </CarouselContent>
 
-          {/* Logic hiển thị mũi tên (giữ nguyên style) */}
           {showArrows && (
             <>
               <CarouselPrevious
@@ -213,7 +232,7 @@ const HomePage = () => {
                         variant="secondary"
                         size="sm"
                         className="rounded-full"
-                        onClick={() => navigate("/flashsale")}
+                        onClick={() => navigate("/category/flashsale")}
                       >
                         Xem tất cả
                       </Button>

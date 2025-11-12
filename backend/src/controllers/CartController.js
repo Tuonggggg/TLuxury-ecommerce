@@ -1,22 +1,21 @@
-import Cart from "../models/CartModel.js";
-import Product from "../models/ProductModel.js";
+import Cart from "../models/cartModel.js";
+import Product from "../models/productModel.js";
 
-// Hàm tiện ích: Tính giá cuối cùng sau khi áp dụng discount
+// ✅ ĐỊNH NGHĨA GIỚI HẠN MUA TỐI ĐA
+const MAX_QTY_PER_ITEM = 5;
+
+// Hàm tiện ích: Tính giá cuối cùng sau khi áp dụng discount (Giữ nguyên)
 const calculateFinalPrice = (product) => {
   const price = product.price;
   const discount = product.discount || 0;
-  return price - (price * discount) / 100;
+  // Sử dụng finalPrice từ virtual (nếu có) hoặc tính toán
+  return product.finalPrice || price - (price * discount) / 100;
 };
 
 // =========================================================
-// KIỂM TRA XÁC THỰC NGƯỜI DÙNG
-// Tất cả các hàm bên dưới đều giả định đã có protect middleware,
-// nhưng chúng ta sẽ thêm kiểm tra user_id tường minh để tránh lỗi 500.
-// =========================================================
-
 // Lấy giỏ hàng của user
+// =========================================================
 export const getCart = async (req, res) => {
-  // 🚨 KIỂM TRA BẮT BUỘC
   if (!req.user || !req.user._id) {
     return res
       .status(401)
@@ -27,12 +26,10 @@ export const getCart = async (req, res) => {
     const cart = await Cart.findOne({ user: req.user._id }).populate(
       "items.product"
     );
-    if (!cart) return res.json({ items: [] });
+    if (!cart) return res.json({ items: [] }); // Tính tổng tiền
 
-    // Tính tổng tiền (sử dụng giá đã lưu trong giỏ nếu có, hoặc tính lại)
     const cartWithTotal = cart.toObject();
     cartWithTotal.totalPrice = cart.items.reduce((sum, item) => {
-      // Ưu tiên sử dụng giá đã lưu trong giỏ (item.price)
       const itemPrice = item.price || calculateFinalPrice(item.product);
       return sum + itemPrice * item.qty;
     }, 0);
@@ -46,9 +43,10 @@ export const getCart = async (req, res) => {
   }
 };
 
+// =========================================================
 // Thêm sản phẩm vào giỏ
+// =========================================================
 export const addToCart = async (req, res) => {
-  // 🚨 BẮT LỖI XÁC THỰC (LỖI 500)
   if (!req.user || !req.user._id) {
     return res
       .status(401)
@@ -56,71 +54,76 @@ export const addToCart = async (req, res) => {
   }
 
   const { productId, qty } = req.body;
+  const quantityToAdd = Number(qty) || 1; // Đảm bảo qty là số
 
   try {
     const product = await Product.findById(productId);
     if (!product)
       return res.status(404).json({ message: "Sản phẩm không tồn tại" });
-    if (product.status === "unavailable")
-      return res.status(400).json({ message: "Sản phẩm hiện không bán" });
+    if (product.status === "hết hàng" || product.stock === 0)
+      return res.status(400).json({ message: "Sản phẩm hiện đã hết hàng" });
 
-    // ✅ LƯU Ý: Tính giá sản phẩm cuối cùng cần lưu
     const finalPrice = calculateFinalPrice(product);
-
-    // Kiểm tra tồn kho
-    if (product.stock < qty)
-      return res
-        .status(400)
-        .json({
-          message: `Số lượng vượt quá tồn kho. Còn ${product.stock} sản phẩm.`,
-        });
-
     let cart = await Cart.findOne({ user: req.user._id });
 
     if (!cart) {
       // Tạo giỏ hàng mới
       cart = new Cart({
         user: req.user._id,
-        items: [{ product: productId, qty, price: finalPrice }], // ✅ Đã thêm price
+        items: [],
       });
-    } else {
-      const itemIndex = cart.items.findIndex(
-        (item) => item.product.toString() === productId
-      );
-      if (itemIndex > -1) {
-        // Sản phẩm đã có: Cập nhật số lượng
-        const newQty = cart.items[itemIndex].qty + qty;
-        if (newQty > product.stock)
-          return res
-            .status(400)
-            .json({
-              message: `Số lượng mới (${newQty}) vượt quá tồn kho (${product.stock}).`,
-            });
+    }
 
-        cart.items[itemIndex].qty = newQty;
-        cart.items[itemIndex].price = finalPrice; // ✅ Cập nhật giá theo giá hiện tại
-      } else {
-        // Sản phẩm chưa có: Thêm vào mảng
-        cart.items.push({ product: productId, qty, price: finalPrice }); // ✅ Đã thêm price
-      }
+    const itemIndex = cart.items.findIndex(
+      (item) => item.product.toString() === productId
+    );
+
+    let newQty = quantityToAdd;
+
+    if (itemIndex > -1) {
+      // Sản phẩm đã có: Cập nhật số lượng
+      newQty = cart.items[itemIndex].qty + quantityToAdd;
+    }
+
+    // ✅ KIỂM TRA GIỚI HẠN MUA TỐI ĐA (MAX 5)
+    if (newQty > MAX_QTY_PER_ITEM) {
+      return res.status(400).json({
+        message: `Bạn chỉ có thể mua tối đa ${MAX_QTY_PER_ITEM} sản phẩm này.`,
+      });
+    } // ✅ KIỂM TRA TỒN KHO
+
+    if (newQty > product.stock) {
+      return res.status(400).json({
+        message: "Số lượng vượt quá tồn kho.",
+      });
+    }
+
+    // Nếu logic đã qua, cập nhật giỏ hàng
+    if (itemIndex > -1) {
+      cart.items[itemIndex].qty = newQty;
+      cart.items[itemIndex].price = finalPrice; // Cập nhật giá mới nhất
+    } else {
+      cart.items.push({ product: productId, qty: newQty, price: finalPrice });
     }
 
     const updatedCart = await cart.save();
     res.json(await updatedCart.populate("items.product"));
   } catch (error) {
     console.error("Lỗi SERVER khi thêm sản phẩm vào giỏ:", error);
+    // Bắt lỗi Validation từ Model (nếu có)
+    if (error.name === "ValidationError") {
+      return res.status(400).json({ message: error.message });
+    }
     res
       .status(500)
-      .json({
-        message: "Lỗi Server nội bộ khi thêm sản phẩm vào giỏ",
-        error: error.message,
-      });
+      .json({ message: "Lỗi Server nội bộ", error: error.message });
   }
 };
 
+// =========================================================
 // Cập nhật số lượng sản phẩm
+// =========================================================
 export const updateCartItem = async (req, res) => {
-  // 🚨 BẮT LỖI XÁC THỰC (LỖI 500)
   if (!req.user || !req.user._id) {
     return res
       .status(401)
@@ -128,8 +131,16 @@ export const updateCartItem = async (req, res) => {
   }
 
   const { qty } = req.body;
+  const newQty = Number(qty); // Đảm bảo là số
 
   try {
+    // ✅ KIỂM TRA GIỚI HẠN MUA TỐI ĐA (MAX 5)
+    if (newQty > MAX_QTY_PER_ITEM) {
+      return res.status(400).json({
+        message: `Bạn chỉ có thể mua tối đa ${MAX_QTY_PER_ITEM} sản phẩm này.`,
+      });
+    }
+
     const cart = await Cart.findOne({ user: req.user._id });
     if (!cart)
       return res.status(404).json({ message: "Giỏ hàng không tồn tại" });
@@ -144,32 +155,40 @@ export const updateCartItem = async (req, res) => {
     const product = await Product.findById(req.params.productId);
     if (!product)
       return res.status(404).json({ message: "Sản phẩm không tồn tại" });
-    if (qty > product.stock)
-      return res.status(400).json({ message: "Số lượng vượt quá tồn kho" });
 
-    // ✅ Cập nhật giá cuối cùng khi cập nhật số lượng
+    // ✅ KIỂM TRA TỒN KHO
+    if (newQty > product.stock)
+      return res
+        .status(400)
+        .json({ message: `Số lượng vượt quá tồn kho (Còn ${product.stock})` });
+
     const finalPrice = calculateFinalPrice(product);
 
-    if (qty <= 0) {
+    if (newQty <= 0) {
+      // Xóa nếu số lượng là 0
       cart.items.splice(itemIndex, 1);
     } else {
-      cart.items[itemIndex].qty = qty;
-      cart.items[itemIndex].price = finalPrice; // ✅ Cập nhật giá
+      cart.items[itemIndex].qty = newQty;
+      cart.items[itemIndex].price = finalPrice; // Cập nhật giá
     }
 
     const updatedCart = await cart.save();
     res.json(await updatedCart.populate("items.product"));
   } catch (error) {
     console.error("Lỗi SERVER khi cập nhật giỏ hàng:", error);
+    if (error.name === "ValidationError") {
+      return res.status(400).json({ message: error.message });
+    }
     res
       .status(500)
       .json({ message: "Lỗi khi cập nhật giỏ hàng", error: error.message });
   }
 };
 
-// Xóa sản phẩm khỏi giỏ
+// =========================================================
+// Xóa sản phẩm khỏi giỏ (Giữ nguyên)
+// =========================================================
 export const removeFromCart = async (req, res) => {
-  // 🚨 BẮT LỖI XÁC THỰC (LỖI 500)
   if (!req.user || !req.user._id) {
     return res
       .status(401)
@@ -195,9 +214,11 @@ export const removeFromCart = async (req, res) => {
   }
 };
 
-// Xóa toàn bộ giỏ hàng
+// =========================================================
+// Xóa toàn bộ giỏ hàng (Giữ nguyên)
+// =========================================================
 export const clearCart = async (req, res) => {
-  // 🚨 BẮT LỖI XÁC THỰC (LỖI 500)
+  section_product_management;
   if (!req.user || !req.user._id) {
     return res
       .status(401)

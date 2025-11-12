@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { Package, BarChart3, ListTree, Users, Package2, LogOut } from 'lucide-react'; // Thêm LogOut icon
+import React, { useState, useEffect, useCallback } from 'react';
+import { Package, BarChart3, ListTree, Users, Package2, LogOut, Loader2, NotebookPen, TicketPercent } from 'lucide-react'; // Thêm Loader2
 import { Button } from '@/components/ui/button';
 import useProducts from './hooks/useProducts';
 import DashboardStats from './components/DashboardStats';
@@ -10,31 +10,58 @@ import ProductModal from './components/ProductModal';
 import OrderManagement from './components/OrderManagement';
 import UserManagement from './components/UserManagement';
 import CategoryManagement from './components/CategoryManagement';
-// 🚨 IMPORT useAuth HOOK
 import { useAuth } from '@/context/AuthContext';
-
+import api from '@/lib/axios'; // ✅ Import api
+import { toast } from 'sonner'; // ✅ Import toast
+import BlogManagement from './components/BlogManagement';
+import DiscountManagement from './components/DiscountManagement';
 
 const AdminPage = () => {
-  // 🚨 GỌI HOOK useAuth
   const { logout } = useAuth();
   const [activeTab, setActiveTab] = useState('dashboard');
 
-  // SỬ DỤNG HOOK ĐÃ TẠO (Cho Product, Dashboard)
+  // 1. HOOK LẤY DỮ LIỆU SẢN PHẨM PHÂN TRANG (CHO BẢNG PRODUCTTABLE)
   const {
     products, categories, getCategoryName,
-    loading, isSubmitting,
+    loading: productsLoading, // Đổi tên loading để tránh trùng lặp
+    isSubmitting,
     currentPage, itemsPerPage, totalPages, totalProductsCount, setCurrentPage, setItemsPerPage,
     searchTerm, setSearchTerm, selectedCategory, setSelectedCategory, selectedStatus, setSelectedStatus,
     sortBy, setSortBy, sortOrder, setSortOrder,
     createProduct, updateProduct, deleteProduct,
-  } = useProducts();
+  } = useProducts(); // Hook này chỉ dùng cho tab 'products'
+
+  // ✅ 2. STATE MỚI ĐỂ LẤY TOÀN BỘ DỮ LIỆU (CHO BIỂU ĐỒ)
+  const [allProductsForCharts, setAllProductsForCharts] = useState([]);
+  const [chartsLoading, setChartsLoading] = useState(true);
 
   const [showModal, setShowModal] = useState(false);
   const [modalMode, setModalMode] = useState('create');
   const [currentProduct, setCurrentProduct] = useState(null);
   const [previewImages, setPreviewImages] = useState([]);
 
-  // Gộp tất cả logic mở modal (Chỉ dùng cho Product CRUD)
+  // ✅ 3. HÀM GỌI API LẤY TẤT CẢ SẢN PHẨM (CHO BIỂU ĐỒ)
+  const fetchAllProductsForCharts = useCallback(async () => {
+    setChartsLoading(true);
+    try {
+      // Gọi API với tham số fetchAll=true (đã sửa trong ProductController)
+      const res = await api.get('/products?fetchAll=true');
+      setAllProductsForCharts(res.data.products || []);
+    } catch (err) {
+      toast.error("Lỗi tải dữ liệu biểu đồ", { description: err.message });
+    } finally {
+      setChartsLoading(false);
+    }
+  }, []);
+
+  // ✅ 4. CHẠY HÀM FETCH KHI TAB DASHBOARD ĐƯỢC CHỌN
+  useEffect(() => {
+    if (activeTab === 'dashboard') {
+      fetchAllProductsForCharts();
+    }
+  }, [activeTab, fetchAllProductsForCharts]);
+
+
   const openModal = (mode, product = null) => {
     setModalMode(mode);
     setCurrentProduct(product);
@@ -47,19 +74,19 @@ const AdminPage = () => {
     setShowModal(true);
   };
 
-  // 🚨 HÀM XỬ LÝ ĐĂNG XUẤT
   const handleLogout = async () => {
     await logout(); // Gọi hàm logout từ AuthProvider
   }
 
 
-  // Danh sách các tab quản lý
   const managementTabs = [
     { key: 'dashboard', name: 'Thống kê', icon: BarChart3 },
     { key: 'products', name: 'Sản phẩm', icon: Package },
     { key: 'categories', name: 'Danh mục', icon: ListTree },
     { key: 'orders', name: 'Đơn hàng', icon: Package2 },
     { key: 'users', name: 'Người dùng', icon: Users },
+    { key: 'blog', name: 'Bài đăng', icon: NotebookPen },
+    { key: 'discount', name: 'Voucher', icon: TicketPercent },
   ];
 
   return (
@@ -96,13 +123,23 @@ const AdminPage = () => {
       {/* Content Tabs */}
       {activeTab === 'dashboard' && (
         <div className="space-y-6">
-          <DashboardStats products={products} />
-          <DashboardCharts products={products} getCategoryName={getCategoryName} />
+          {/* ✅ SỬ DỤNG LOGIC MỚI CHO BIỂU ĐỒ */}
+          {chartsLoading ? (
+            <div className="flex justify-center items-center p-12">
+              <Loader2 className="w-6 h-6 animate-spin text-blue-600" />
+            </div>
+          ) : (
+            <>
+              <DashboardStats products={allProductsForCharts} />
+              <DashboardCharts products={allProductsForCharts} />
+            </>
+          )}
         </div>
       )}
 
       {activeTab === 'products' && (
         <div className="space-y-6">
+          {/* Sử dụng dữ liệu phân trang (từ useProducts) */}
           <ProductFilters
             searchTerm={searchTerm} setSearchTerm={setSearchTerm}
             categories={categories} selectedCategory={selectedCategory} setSelectedCategory={setSelectedCategory}
@@ -112,7 +149,7 @@ const AdminPage = () => {
           />
 
           <ProductTable
-            products={products} loading={loading} getCategoryName={getCategoryName}
+            products={products} loading={productsLoading} getCategoryName={getCategoryName}
             totalPages={totalPages} currentPage={currentPage} totalProductsCount={totalProductsCount}
             itemsPerPage={itemsPerPage} setCurrentPage={setCurrentPage} setItemsPerPage={setItemsPerPage}
             openModal={openModal} handleDeleteClick={deleteProduct}
@@ -124,6 +161,8 @@ const AdminPage = () => {
       {activeTab === 'categories' && <CategoryManagement />}
       {activeTab === 'orders' && <OrderManagement />}
       {activeTab === 'users' && <UserManagement />}
+      {activeTab === 'blog' && <BlogManagement />}
+      {activeTab === 'discount' && <DiscountManagement />}
 
 
       {/* Product Modal (Chỉ hiển thị khi quản lý sản phẩm) */}
