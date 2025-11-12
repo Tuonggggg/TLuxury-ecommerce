@@ -1,7 +1,7 @@
 import asyncHandler from "express-async-handler";
 import Order from "../models/OrderModel.js";
 import Product from "../models/ProductModel.js"; // Đảm bảo tên file model là 'productModel.js'
-import Cart from "../models/cartModel.js";
+import Cart from "../models/CartModel.js";
 import Voucher from "../models/DiscountModel.js";
 import {
   createVnPayPayment,

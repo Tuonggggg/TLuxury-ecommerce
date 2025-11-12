@@ -1,4 +1,4 @@
-import Cart from "../models/cartModel.js";
+import Cart from "../models/CartModel.js";
 import Product from "../models/ProductModel.js";
 
 // ✅ ĐỊNH NGHĨA GIỚI HẠN MUA TỐI ĐA

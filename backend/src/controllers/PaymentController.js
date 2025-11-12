@@ -1,6 +1,6 @@
 import asyncHandler from "express-async-handler";
 import Order from "../models/OrderModel.js";
-import Cart from "../models/cartModel.js";
+import Cart from "../models/CartModel.js";
 
 // @desc    Thanh toán cho 1 đơn hàng
 // @route   POST /api/payments/:orderId
