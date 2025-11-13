@@ -1,27 +1,27 @@
-// File: src/pages/Admin/components/ProductModal.jsx
 import React, { useEffect, useMemo, useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Input } from "@/components/ui/input";
-import { Button } from "@/components/ui/button";
-import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input"; // Giữ alias cho UI Components
+import { Button } from "@/components/ui/button"; // Giữ alias
+import { Label } from "@/components/ui/label"; // Giữ alias
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/components/ui/select";
+} from "@/components/ui/select"; // Giữ alias
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
   DialogFooter,
-} from "@/components/ui/dialog";
+} from "@/components/ui/dialog"; // Giữ alias
 import { X, Loader2 } from "lucide-react";
 import { toast } from "sonner";
-import { productSchema } from "../schema/productSchema";
+import { productSchema } from "../schema/productSchema"; // Đường dẫn tương đối CỤC BỘ (đã đúng)
+import api from "../../../lib/axios"; // 🔑 ĐÃ SỬA: Đường dẫn tương đối chính xác đến src/lib/axios
 
 const DB_STATUSES = [
   { value: "còn hàng", label: "Còn hàng" },
@@ -46,18 +46,20 @@ const ProductModal = ({
   const [previewImages, setPreviewImages] = useState([]);
   const [selectedFiles, setSelectedFiles] = useState([]);
 
-  // ✅ Lấy danh sách brand
+  // ✅ Lấy danh sách brand (Sử dụng API instance)
   useEffect(() => {
     const fetchBrands = async () => {
       try {
-        const res = await fetch("http://localhost:5000/api/products/brands");
-        const data = await res.json();
+        // SỬ DỤNG API.GET VÀ ĐƯỜNG DẪN TƯƠNG ĐỐI
+        const res = await api.get("/products/brands");
+        const data = res.data; // Dùng Axios, data nằm trong res.data
         const formatted =
           Array.isArray(data) && typeof data[0] === "string"
             ? data.map((b) => ({ value: b, label: b }))
             : data;
         setBrands(formatted);
       } catch {
+        // Fallback data
         setBrands([
           { value: "Việt Nam", label: "Việt Nam" },
           { value: "Mỹ", label: "Mỹ" },

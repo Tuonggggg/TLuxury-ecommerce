@@ -4,12 +4,13 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { Eye, EyeOff, LogIn, Mail, Lock, XCircle } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
-import axios from 'axios';
+// import axios from 'axios'; // KHÔNG SỬ DỤNG AXIOS CHUẨN MÀ DÙNG INSTANCE ĐÃ CẤU HÌNH
+import api from '../../lib/axios'; // <-- ĐÃ SỬA: Thay thế alias '@/lib/axios' bằng đường dẫn tương đối
 import { toast } from 'sonner';
-import { useAuth } from '@/hooks/useAuth';
+import { useAuth } from '../../hooks/useAuth'; // <-- ĐÃ SỬA: Thay thế alias '@/hooks/useAuth' bằng đường dẫn tương đối
 
 
-const API_URL = 'http://localhost:5000/api/auth/login';
+// ĐÃ XÓA: const API_URL = 'http://localhost:5000/api/auth/login';
 
 const loginSchema = z.object({
   email: z.string().email('Email không hợp lệ'),
@@ -43,7 +44,9 @@ export default function LoginForm() {
     const payload = { email: data.email, password: data.password };
 
     try {
-      const res = await axios.post(API_URL, payload, { withCredentials: true });
+      // ⚠️ ĐÃ SỬA: SỬ DỤNG INSTANCE API VÀ CHỈ TRUYỀN PATH TƯƠNG ĐỐI '/auth/login'
+      // BASE URL (ví dụ: /api) sẽ được tự động thêm vào từ axios.js
+      const res = await api.post('/auth/login', payload);
 
       if (res.data && res.data.accessToken) {
         const { accessToken, ...userData } = res.data;
@@ -57,7 +60,7 @@ export default function LoginForm() {
         // dispatch(clearCartOnLogout()); // <--- ĐÃ XÓA
 
         // 3. Chuyển hướng
-        setTimeout(() => { navigate('/'); }, 300);
+        setTimeout(() => { navigate('/', { replace: true }); }, 300); // Thêm replace: true
       }
     } catch (error) {
       // (Xử lý lỗi giữ nguyên)
@@ -186,6 +189,12 @@ export default function LoginForm() {
           </p>
         </div>
       </div>
+      <style>
+        {/* Thêm hiệu ứng focus cho input */}
+        {`
+        input:focus {box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.4);} `
+        }
+      </style>
     </div>
   );
 }

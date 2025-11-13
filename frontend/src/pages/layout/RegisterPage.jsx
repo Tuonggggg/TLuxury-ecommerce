@@ -3,11 +3,12 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { Eye, EyeOff, UserPlus, Phone, Mail, Lock, User, CheckCircle } from 'lucide-react';
-import { Link } from 'react-router-dom'; // ⚠️ Sửa lỗi: Import từ 'react-router-dom'
-import axios from 'axios'; // 🔑 Import Axios
+import { Link } from 'react-router-dom';
+import api from '../../lib/axios';
 
-// --- Cấu hình API Base URL (Nên đặt trong .env) ---
-const API_URL = 'http://localhost:5000/api/auth/register'; // ⚠️ THAY THẾ bằng URL API Backend của bạn
+
+// --- Cấu hình API Base URL (ĐÃ XÓA HARDCODE) ---
+// const API_URL = 'http://localhost:5000/api/auth/register'; // ⚠️ ĐÃ XÓA HARDCODE
 
 // --- ZOD SCHEMA (Giữ nguyên) ---
 const registerSchema = z.object({
@@ -104,13 +105,13 @@ export default function RegisterPage() {
       username: data.username,
       email: data.email,
       password: data.password,
-      // Có thể thêm role nếu bạn muốn người dùng tự chọn, nếu không backend sẽ dùng default: "user"
-      // role: 'user', 
+      fullName: data.fullName,
+      phone: data.phone,
     };
 
     try {
-      // 2. Gọi API Đăng ký
-      const res = await axios.post(API_URL, payload);
+      // 2. Gọi API Đăng ký (ĐÃ SỬA: Dùng api instance và đường dẫn tương đối)
+      const res = await api.post('/auth/register', payload);
 
       // 3. Xử lý thành công
       if (res.data && res.status === 201) {
