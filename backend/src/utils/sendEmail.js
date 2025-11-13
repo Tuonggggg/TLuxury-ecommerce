@@ -1,28 +1,27 @@
-import nodemailer from "nodemailer";
+import sgMail from "@sendgrid/mail";
+
+sgMail.setApiKey(process.env.SENDGRID_API_KEY);
 
 const sendEmail = async (options) => {
   try {
-    const transporter = nodemailer.createTransport({
-      host: process.env.EMAIL_HOST,
-      port: process.env.EMAIL_PORT,
-      secure: process.env.EMAIL_SECURE === "true",
-      auth: {
-        user: process.env.EMAIL_USERNAME,
-        pass: process.env.EMAIL_PASSWORD,
-      },
-    });
-
-    const mailOptions = {
-      from: `"${process.env.FROM_NAME}" <${process.env.FROM_EMAIL}>`,
+    const msg = {
       to: options.email,
+      from: {
+        name: process.env.FROM_NAME,
+        email: process.env.FROM_EMAIL,
+      },
       subject: options.subject,
       html: options.message,
     };
+
     console.log("🚀 Gọi hàm sendEmail() với:", options);
-    const info = await transporter.sendMail(mailOptions);
-    console.log("✅ Email đã gửi thành công:", info.response);
+    const response = await sgMail.send(msg);
+    console.log("✅ Email đã gửi thành công:", response[0].statusCode);
   } catch (error) {
-    console.error("❌ Lỗi khi gửi email:", error);
+    console.error(
+      "❌ Lỗi khi gửi email:",
+      error.response?.body || error.message
+    );
   }
 };
 
