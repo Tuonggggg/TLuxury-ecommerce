@@ -21,7 +21,7 @@ import {
 import { X, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { productSchema } from "../schema/productSchema"; // Đường dẫn tương đối CỤC BỘ (đã đúng)
-import api from "../../../lib/axios"; // 🔑 ĐÃ SỬA: Đường dẫn tương đối chính xác đến src/lib/axios
+import api from '@/lib/axios';
 
 const DB_STATUSES = [
   { value: "còn hàng", label: "Còn hàng" },
