@@ -395,7 +395,7 @@ const ProductDetailsPage = () => {
         <Tabs defaultValue="description" className="w-full">
           <TabsList className="border-b">
             <TabsTrigger value="description">Mô tả sản phẩm</TabsTrigger>
-            <TabsTrigger value="reviews">Đánh giá</TabsTrigger>
+            {/* <TabsTrigger value="reviews">Đánh giá</TabsTrigger> */}
           </TabsList>
           <TabsContent value="description" className="py-6">
             <div

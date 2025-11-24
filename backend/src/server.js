@@ -31,38 +31,33 @@ connectDB(); // Kết nối DB
 
 const app = express();
 
-// --- BƯỚC SỬA LỖI CSP: Cấu hình lại Helmet chi tiết và an toàn hơn ---
-// Chúng ta sẽ loại bỏ wildcard '*' và thay bằng các tên miền cụ thể.
 app.use(
   helmet({
     contentSecurityPolicy: {
       directives: {
-        // Cho phép tất cả các tài nguyên mặc định từ nguồn 'self'
-        defaultSrc: ["'self'"], // ✅ SỬA LỖI IMG-SRC: Thêm các nguồn hình ảnh cụ thể và data URI
+        defaultSrc: ["'self'"],
         imgSrc: [
           "'self'",
           "data:",
-          "https://res.cloudinary.com", // Ví dụ nếu bạn dùng Cloudinary
-          "https://firebasestorage.googleapis.com", // Ví dụ nếu bạn dùng Firebase Storage // THAY THẾ CHÚ THÍCH NÀY bằng các domain chính xác bạn đang dùng
-        ], // Thêm mediaSrc nếu bạn có video/audio từ nguồn ngoài
+          "https://res.cloudinary.com",
+          "https://firebasestorage.googleapis.com",
+        ],
 
         mediaSrc: [
           "'self'",
           "https://res.cloudinary.com",
           "https://your-video-cdn.com",
-        ], // Nếu bạn dùng Google Fonts hoặc các style sheet bên ngoài, bạn cũng có thể cần thêm:
+        ],
 
         styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
         fontSrc: ["'self'", "https://fonts.gstatic.com"],
 
-        // Cho phép kết nối WebSocket (quan trọng cho môi trường dev hoặc nếu bạn dùng socket.io)
         connectSrc: ["'self'", "*"],
       },
-    }, // Tắt Header X-Powered-By
+    },
     xPoweredBy: false,
   })
 );
-// ---------------------------------------------------
 
 app.use(xss());
 app.use(mongoSanitize());

@@ -85,7 +85,6 @@ const Header = () => {
     const PRIMARY_COLOR_HOVER = "hover:text-primary";
 
     // ✅ 2. LẤY SỐ LƯỢNG TỪ REDUX STORE
-    // (Tính tổng số lượng 'quantity' từ mảng 'cartItems' trong state 'cart')
     const cartCount = useSelector((state) =>
         state.cart.cartItems.reduce((total, item) => total + item.quantity, 0)
     );
@@ -100,7 +99,6 @@ const Header = () => {
     };
 
     const handleLogout = async () => {
-        // Logic logout (đã chính xác)
         await logout();
         navigate("/account/login");
     };
@@ -119,16 +117,15 @@ const Header = () => {
                 </div>
 
                 {/* Icons */}
-                <div className="flex items-center gap-3 md:gap-4 flex-shrink-0">
+                <div className="flex items-center gap-2 md:gap-4 flex-shrink-0">
                     <a href="tel:0919999999" className="hidden sm:flex items-center gap-1.5 text-gray-700 text-sm md:text-base font-medium hover:text-primary transition">
                         <Phone className="w-4 h-4 md:w-5 md:h-5 text-primary" />
                         <span>Gọi đặt hàng: <span className="font-semibold text-red-500 whitespace-nowrap">0919999999</span></span>
                     </a>
 
-                    {/* ✅ 3. SỬA LẠI ICON GIỎ HÀNG */}
+                    {/* --- Desktop Cart --- */}
                     <Link to="/cart" className={`relative hidden md:flex flex-col items-center p-2 rounded-lg transition-colors text-gray-700 ${PRIMARY_COLOR_HOVER} group`}>
                         <ShoppingCart className="w-7 h-7" />
-                        {/* Hiển thị số lượng từ Redux (cartCount) */}
                         {cartCount > 0 && (
                             <span className="absolute top-0 right-1 bg-red-600 text-white text-xs font-bold w-5 h-5 rounded-full flex items-center justify-center border-2 border-white">
                                 {cartCount > 99 ? '99+' : cartCount}
@@ -137,6 +134,7 @@ const Header = () => {
                         <span className="text-xs font-medium text-gray-600 group-hover:text-primary transition-colors mt-0.5">Giỏ hàng</span>
                     </Link>
 
+                    {/* --- Desktop Account --- */}
                     {user ? (
                         <UserDropdown user={user} handleLogout={handleLogout} PRIMARY_COLOR_HOVER={PRIMARY_COLOR_HOVER} />
                     ) : (
@@ -145,15 +143,65 @@ const Header = () => {
                             <span className="text-xs font-medium text-gray-600 group-hover:text-primary transition-colors mt-0.5">Tài khoản</span>
                         </Link>
                     )}
+
+                    {/* --- ⭐️ START: MOBILE ICONS (ĐÃ THÊM) ⭐️ --- */}
+
+                    {/* Mobile Cart */}
+                    <Button asChild variant="ghost" size="icon" className={`relative md:hidden text-gray-700 ${PRIMARY_COLOR_HOVER}`}>
+                        <Link to="/cart">
+                            <ShoppingCart className="w-6 h-6" />
+                            {cartCount > 0 && (
+                                <span className="absolute top-1 right-1 bg-red-600 text-white text-[10px] font-bold w-4 h-4 rounded-full flex items-center justify-center">
+                                    {cartCount > 9 ? '9+' : cartCount}
+                                </span>
+                            )}
+                        </Link>
+                    </Button>
+
+                    {/* Mobile Account */}
+                    {user ? (
+                        <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                                <Button variant="ghost" size="icon" className={`md:hidden text-gray-700 ${PRIMARY_COLOR_HOVER}`}>
+                                    <User className="w-6 h-6" />
+                                </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent className="w-56" align="end">
+                                <DropdownMenuLabel className="font-bold text-primary truncate">
+                                    Xin chào, {user.username || user.email.split('@')[0] || "Tài khoản"}
+                                </DropdownMenuLabel>
+                                <DropdownMenuSeparator />
+                                <Link to="/account/profile"><DropdownMenuItem><Settings className="mr-2 h-4 w-4" /><span>Thông tin cá nhân</span></DropdownMenuItem></Link>
+                                <Link to="/my-orders"><DropdownMenuItem><History className="mr-2 h-4 w-4" /><span>Lịch sử đơn hàng</span></DropdownMenuItem></Link>
+                                <Link to="/favorites"><DropdownMenuItem><Heart className="mr-2 h-4 w-4" /><span>Sản phẩm yêu thích</span></DropdownMenuItem></Link>
+                                <DropdownMenuSeparator />
+                                <DropdownMenuItem onClick={handleLogout} className="text-red-500 hover:bg-red-50 hover:text-red-600 cursor-pointer">
+                                    <LogOut className="mr-2 h-4 w-4" />
+                                    <span>Đăng xuất</span>
+                                </DropdownMenuItem>
+                            </DropdownMenuContent>
+                        </DropdownMenu>
+                    ) : (
+                        <Button asChild variant="ghost" size="icon" className={`md:hidden text-gray-700 ${PRIMARY_COLOR_HOVER}`}>
+                            <Link to="/account/login">
+                                <User className="w-6 h-6" />
+                            </Link>
+                        </Button>
+                    )}
+                    {/* --- ⭐️ END: MOBILE ICONS ⭐️ --- */}
+
+                    {/* Nút Menu (Hamburger) */}
                     <Button variant="ghost" size="icon" className={`md:hidden text-gray-700 ${PRIMARY_COLOR_HOVER}`} onClick={() => setOpenMenu(!openMenu)}>
                         {openMenu ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
                     </Button>
                 </div>
             </div>
+
             {/* Search bar (Mobile) */}
             <div className="px-4 pb-3 border-b border-gray-100 md:hidden">
                 <SearchInput isMobile={true} searchQuery={searchQuery} setSearchQuery={setSearchQuery} handleSearch={handleSearch} handleClearSearch={handleClearSearch} />
             </div>
+
             {/* Navbar */}
             <Navbar openMenu={openMenu} setOpenMenu={setOpenMenu} />
         </header>

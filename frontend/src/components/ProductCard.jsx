@@ -105,7 +105,7 @@ const ProductCard = ({ product, onAddToCart, isPending }) => {
       </Link>
 
       {/* Nội dung sản phẩm */}
-      <CardContent className="p-3 pb-2 flex-grow flex flex-col">
+      {/* <CardContent className="p-3 pb-2 flex-grow flex flex-col">
         <Link to={`/product/${product._id || product.id || product.slug}`}>
           <h3 className="
             text-sm font-medium text-gray-800 
@@ -116,8 +116,6 @@ const ProductCard = ({ product, onAddToCart, isPending }) => {
             {product.name}
           </h3>
         </Link>
-
-        {/* Khu vực giá */}
         <div className="mt-auto">
           <div className="flex items-baseline gap-2">
             <span
@@ -130,6 +128,42 @@ const ProductCard = ({ product, onAddToCart, isPending }) => {
             </span>
             {(hasDiscount || isFlash) && (
               <span className="text-xs text-gray-400 line-through">
+                {formatPrice(product.price)}
+              </span>
+            )}
+          </div>
+        </div>
+      </CardContent> */}
+      {/* Nội dung sản phẩm */}
+      {/* ✅ RESPONSIVE PADDING */}
+      <CardContent className="p-2 pb-1 md:p-3 md:pb-2 flex-grow flex flex-col">
+        <Link to={`/product/${product._id || product.id || product.slug}`}>
+          <h3 className="
+            text-sm font-medium text-gray-800 
+            line-clamp-2 
+            h-10 md:text-base md:h-12 /* ✅ RESPONSIVE FONT + HEIGHT */
+            hover:text-blue-600 transition-colors duration-200
+            mb-2
+          ">
+            {product.name}
+          </h3>
+        </Link>
+
+        {/* Khu vực giá */}
+        <div className="mt-auto">
+          <div className="flex items-baseline gap-2">
+            <span
+              className={`
+                font-bold 
+                text-base  /* ✅ RESPONSIVE FONT */
+                ${isFlash || hasDiscount ? "text-red-600" : "text-gray-900"}
+              `}
+            >
+              {formatPrice(finalPrice)}
+            </span>
+            {(hasDiscount || isFlash) && (
+              /* ✅ RESPONSIVE FONT */
+              <span className="text-xs text-gray-400 line-through md:text-sm">
                 {formatPrice(product.price)}
               </span>
             )}

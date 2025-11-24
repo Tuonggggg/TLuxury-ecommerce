@@ -157,10 +157,16 @@ const CategoryPage = () => {
 
             <div className="w-full px-4 md:px-8 py-4 md:py-8">
                 <div className="max-w-7xl mx-auto relative overflow-hidden rounded-2xl md:rounded-3xl h-[250px] md:h-[400px] shadow-2xl">
+                    {/* ✅ FIX: LOGIC HIỂN THỊ ẢNH THÔNG MINH */}
                     <img
-                        src={`/${category.image}`}
+                        src={
+                            category.image
+                                ? (category.image.startsWith('http') ? category.image : `/${category.image}`)
+                                : "/placeholder.png" // Ảnh mặc định nếu không có
+                        }
                         alt={category.name}
                         className="w-full h-full object-cover"
+                        onError={(e) => { e.target.src = "/placeholder.png"; }} // Fallback khi lỗi
                     />
                 </div>
             </div>

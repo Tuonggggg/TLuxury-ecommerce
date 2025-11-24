@@ -1,13 +1,12 @@
 import React, { useEffect, useState, useCallback } from "react";
 import api from "@/lib/axios";
-import { useNavigate, Link } from "react-router-dom"; // ✅ Thêm Link
-import { Loader2, ChevronLeft, ChevronRight, List } from "lucide-react"; // ✅ Thêm List
+import { useNavigate, Link } from "react-router-dom";
+import { Loader2, List } from "lucide-react";
 import { Pagination, PaginationContent, PaginationItem, PaginationLink, PaginationNext, PaginationPrevious } from "@/components/ui/pagination";
 import { toast } from 'sonner';
 
 // ==========================
 // 🧱 Component: BlogCard (Hiển thị 1 bài blog)
-// (Giữ nguyên logic của bạn)
 // ==========================
 const BlogCard = ({ post }) => {
   const navigate = useNavigate();
@@ -23,7 +22,7 @@ const BlogCard = ({ post }) => {
     >
       <div className="relative overflow-hidden bg-gray-100 aspect-[4/3]">
         <img
-          src={post.featuredImage?.url || "/placeholder.png"} // Sửa lại placeholder
+          src={post.featuredImage?.url || "/placeholder.png"}
           alt={post.title}
           className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
         />
@@ -45,18 +44,17 @@ const BlogCard = ({ post }) => {
 };
 
 // ==========================
-// 🧱 Component: CategorySidebar (ĐÃ SỬA: Lấy dữ liệu động)
+// 🧱 Component: CategorySidebar (Lấy dữ liệu động)
 // ==========================
 const CategorySidebar = () => {
   const [categories, setCategories] = useState([]);
   const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
 
-  // Tải danh mục sản phẩm (giống Navbar)
+  // Tải danh mục sản phẩm
   useEffect(() => {
     const fetchProductCategories = async () => {
       try {
-        // Gọi API lấy danh mục (giống như Navbar)
         const res = await api.get('/categories');
         // Lọc ra các danh mục cha (parent === null)
         const parentCategories = (res.data || []).filter(cat => cat.parent === null);
@@ -69,7 +67,7 @@ const CategorySidebar = () => {
       }
     };
     fetchProductCategories();
-  }, []); // Chỉ chạy 1 lần
+  }, []);
 
   // Hàm điều hướng khi nhấn vào danh mục
   const handleCategoryClick = (slug) => {
@@ -80,7 +78,7 @@ const CategorySidebar = () => {
     <div className="bg-white border border-gray-200">
       <div className="bg-orange-500 text-white px-4 py-3">
         <h2 className="text-base font-bold flex items-center gap-2">
-          <List className="w-4 h-4" /> {/* Icon */}
+          <List className="w-4 h-4" />
           NHÓM SẢN PHẨM NỔI BẬT
         </h2>
       </div>
@@ -91,7 +89,6 @@ const CategorySidebar = () => {
         {categories.map((category) => (
           <button
             key={category._id}
-            // Điều hướng đến trang /category/slug
             onClick={() => handleCategoryClick(category.slug)}
             className="w-full text-left px-4 py-3 text-sm text-gray-700 hover:bg-gray-50 transition-colors cursor-pointer"
           >
@@ -104,9 +101,35 @@ const CategorySidebar = () => {
 };
 
 // ==========================
-// 🧱 Component: Pagination (Đã sửa đổi để dùng component Shadcn)
+// 🧱 Component: Pagination (Logic giới hạn nút hiển thị)
 // ==========================
 const PaginationComponent = ({ currentPage, totalPages, onPageChange }) => {
+  // Hàm tạo mảng số trang để hiển thị
+  const getPageNumbers = () => {
+    const pages = [];
+    const maxPagesToShow = 5; // Hiển thị tối đa 5 nút số trang
+
+    // Logic hiển thị 5 trang xung quanh trang hiện tại
+    let startPage = Math.max(1, currentPage - Math.floor(maxPagesToShow / 2));
+    let endPage = Math.min(totalPages, startPage + maxPagesToShow - 1);
+
+    // Điều chỉnh khi ở cuối danh sách
+    if (endPage - startPage + 1 < maxPagesToShow) {
+      startPage = Math.max(1, endPage - maxPagesToShow + 1);
+    }
+
+    for (let i = startPage; i <= endPage; i++) {
+      pages.push(i);
+    }
+
+    // Trường hợp tổng số trang ít hơn giới hạn hiển thị
+    if (totalPages <= maxPagesToShow) {
+      return Array.from({ length: totalPages }, (_, i) => i + 1);
+    }
+
+    return pages;
+  };
+
   return (
     <Pagination className="mt-8">
       <PaginationContent>
@@ -119,16 +142,16 @@ const PaginationComponent = ({ currentPage, totalPages, onPageChange }) => {
           />
         </PaginationItem>
 
-        {/* Tạo các nút số trang (Logic cơ bản) */}
-        {Array.from({ length: totalPages }).map((_, i) => (
-          <PaginationItem key={i}>
+        {/* Render danh sách số trang đã tính toán */}
+        {getPageNumbers().map((pageNumber) => (
+          <PaginationItem key={pageNumber}>
             <PaginationLink
               href="#"
-              onClick={(e) => { e.preventDefault(); onPageChange(i + 1); }}
-              isActive={currentPage === i + 1}
+              onClick={(e) => { e.preventDefault(); onPageChange(pageNumber); }}
+              isActive={currentPage === pageNumber}
               className="cursor-pointer"
             >
-              {i + 1}
+              {pageNumber}
             </PaginationLink>
           </PaginationItem>
         ))}
@@ -150,43 +173,53 @@ const PaginationComponent = ({ currentPage, totalPages, onPageChange }) => {
 // 📰 Component: BlogPage (Trang Chính)
 // ==========================
 const BlogPage = () => {
-  const [posts, setPosts] = useState([]);
+  // ✅ Đổi tên state để rõ nghĩa: posts chứa TẤT CẢ bài viết
+  const [allPosts, setAllPosts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(1);
-  const [totalPages, setTotalPages] = useState(1);
-  const limit = 12;
 
-  // ✅ Dùng useCallback để tối ưu hóa việc gọi API
+  // Cấu hình số lượng hiển thị (Client-side)
+  const itemsPerPage = 9;
+
+  // ✅ HÀM TẢI DỮ LIỆU: Tải HẾT về (limit lớn hoặc không gửi page)
   const fetchPosts = useCallback(async () => {
     setLoading(true);
     try {
-      // Gọi API public (không cần JWT)
       const res = await api.get("/blogs", {
         params: {
-          page,
-          limit,
+          // Bỏ 'page' để không phân trang ở server
+          limit: 1000, // Lấy số lượng lớn để đảm bảo lấy hết
           status: "published"
-          // ❗️ Ghi chú: Logic lọc theo category (activeCategory) đã bị xóa
-          // vì nó đang lọc bài viết (Blog) theo danh mục sản phẩm (Product)
         },
       });
 
-      setPosts(res.data.posts || []);
-      setTotalPages(res.data.totalPages || 1);
+      // Lưu tất cả dữ liệu vào state
+      // Lưu ý: Kiểm tra xem API trả về mảng ở đâu (res.data hoặc res.data.posts)
+      // Nếu API trả về dạng { posts: [...], totalPages: ... } thì dùng res.data.posts
+      // Nếu API trả về mảng [...] luôn thì dùng res.data
+      setAllPosts(res.data.posts || res.data || []);
+
     } catch (error) {
       console.error("❌ Lỗi khi tải bài viết:", error);
       toast.error("Không thể tải danh sách bài viết.");
-      setPosts([]);
-      setTotalPages(1);
+      setAllPosts([]);
     } finally {
       setLoading(false);
     }
-  }, [page, limit]); // Chỉ phụ thuộc vào page và limit
+  }, []); // Chỉ chạy 1 lần khi mount
 
   useEffect(() => {
     fetchPosts();
-  }, [fetchPosts]); // Gọi hàm đã được bọc trong useCallback
+  }, [fetchPosts]);
 
+  // ✅ TÍNH TOÁN PHÂN TRANG (Client-side)
+  // 1. Tính tổng số trang dựa trên tổng số bài đã tải về
+  const totalPages = Math.ceil(allPosts.length / itemsPerPage);
+
+  // 2. Cắt mảng để lấy ra các bài viết cho trang hiện tại
+  const indexOfLastPost = page * itemsPerPage;
+  const indexOfFirstPost = indexOfLastPost - itemsPerPage;
+  const currentPosts = allPosts.slice(indexOfFirstPost, indexOfLastPost);
 
   const handlePageChange = (newPage) => {
     if (newPage >= 1 && newPage <= totalPages) {
@@ -195,76 +228,109 @@ const BlogPage = () => {
     }
   };
 
+  // --- Logic hiển thị nút phân trang (Giống trước) ---
+  const getPageNumbers = () => {
+    if (totalPages <= 1) return []; // Không cần hiện nếu chỉ có 1 trang
+    const pages = [];
+    const maxPagesToShow = 5;
+    let startPage = Math.max(1, page - Math.floor(maxPagesToShow / 2));
+    let endPage = Math.min(totalPages, startPage + maxPagesToShow - 1);
+    if (endPage - startPage + 1 < maxPagesToShow) {
+      startPage = Math.max(1, endPage - maxPagesToShow + 1);
+    }
+    for (let i = startPage; i <= endPage; i++) pages.push(i);
+    return pages;
+  };
+
   // ==========================
   // JSX
   // ==========================
   return (
     <div className="bg-gray-50 min-h-screen">
-  {/* --- Header --- */}
-  <div className="bg-white border-b border-gray-200">
-    <div className="max-w-[1250px] mx-auto px-4 py-6">
-      <div className="flex items-center gap-2 text-sm text-gray-600">
-        <Link to="/" className="text-orange-500 font-semibold hover:underline">
-          🏠 Trang chủ
-        </Link>
-        <span>/</span>
-        <span className="font-semibold text-gray-800">Tin tức</span>
-      </div>
-    </div>
-  </div>
-
-  {/* --- Main Content --- */}
-  <div className="max-w-[1250px] mx-auto px-4 py-6">
-    <div className="flex gap-6  ">
-      {/* Sidebar (Tải danh mục sản phẩm động) */}
-      <aside className="w-64 flex-shrink-0 hidden lg:block">
-        <CategorySidebar/>
-      </aside>
-
-      {/* Content Area (Tin tức nằm bên phải) */}
-      <main className="flex-1">
-        {/* Title */}
-        <div className="mb-6">
-          <h1 className="text-2xl font-bold text-gray-900 uppercase border-l-4 border-orange-500 pl-4">
-            Tin tức
-          </h1>
+      {/* Header và Sidebar giữ nguyên... */}
+      <div className="bg-white border-b border-gray-200">
+        <div className="max-w-[1250px] mx-auto px-4 py-6">
+          {/* ... Breadcrumb ... */}
+          <div className="flex items-center gap-2 text-sm text-gray-600">
+            <Link to="/" className="text-orange-500 font-semibold hover:underline">Trang chủ</Link>
+            <span>/</span>
+            <span className="font-semibold text-gray-800">Tin tức</span>
+          </div>
         </div>
+      </div>
 
-        {/* Loading State */}
-        {loading ? (
-          <div className="flex justify-center items-center h-96">
-            <Loader2 className="w-10 h-10 animate-spin text-orange-500" />
-          </div>
-        ) : posts.length === 0 ? (
-          <div className="text-center py-20 bg-white border border-gray-200">
-            <p className="text-gray-500 text-lg">
-              Chưa có bài viết nào được đăng.
-            </p>
-          </div>
-        ) : (
-          <>
-            {/* Grid Layout */}
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
-              {posts.map((post) => (
-                <BlogCard key={post._id} post={post} />
-              ))}
+      <div className="max-w-[1250px] mx-auto px-4 py-6">
+        <div className="flex gap-6">
+          <aside className="w-64 flex-shrink-0 hidden lg:block">
+            <CategorySidebar /> {/* Nhớ import lại component này nếu tách file */}
+          </aside>
+
+          <main className="flex-1">
+            <div className="mb-6">
+              <h1 className="text-2xl font-bold text-gray-900 uppercase border-l-4 border-orange-500 pl-4">
+                Tin tức
+              </h1>
             </div>
 
-            {/* Pagination */}
-            {totalPages > 1 && (
-              <PaginationComponent
-                currentPage={page}
-                totalPages={totalPages}
-                onPageChange={handlePageChange}
-              />
-            )}
-          </>
-        )}
-      </main>
-    </div>
-  </div>
-</div>
+            {loading ? (
+              <div className="flex justify-center items-center h-96">
+                <Loader2 className="w-10 h-10 animate-spin text-orange-500" />
+              </div>
+            ) : allPosts.length === 0 ? (
+              <div className="text-center py-20 bg-white border border-gray-200">
+                <p className="text-gray-500 text-lg">Chưa có bài viết nào.</p>
+              </div>
+            ) : (
+              <>
+                {/* ✅ Render currentPosts (đã cắt) thay vì posts */}
+                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-3 gap-4">
+                  {currentPosts.map((post) => (
+                    <BlogCard key={post._id} post={post} />
+                    // Nhớ import BlogCard
+                  ))}
+                </div>
 
+                {/* ✅ Pagination Component */}
+                {totalPages > 1 && (
+                  <Pagination className="mt-8">
+                    <PaginationContent>
+                      <PaginationItem>
+                        <PaginationPrevious
+                          href="#"
+                          onClick={(e) => { e.preventDefault(); handlePageChange(page - 1) }}
+                          className={page === 1 ? "opacity-50 pointer-events-none" : "cursor-pointer"}
+                        />
+                      </PaginationItem>
+
+                      {getPageNumbers().map((p) => (
+                        <PaginationItem key={p}>
+                          <PaginationLink
+                            href="#"
+                            isActive={page === p}
+                            onClick={(e) => { e.preventDefault(); handlePageChange(p) }}
+                            className="cursor-pointer"
+                          >
+                            {p}
+                          </PaginationLink>
+                        </PaginationItem>
+                      ))}
+
+                      <PaginationItem>
+                        <PaginationNext
+                          href="#"
+                          onClick={(e) => { e.preventDefault(); handlePageChange(page + 1) }}
+                          className={page === totalPages ? "opacity-50 pointer-events-none" : "cursor-pointer"}
+                        />
+                      </PaginationItem>
+                    </PaginationContent>
+                  </Pagination>
+                )}
+              </>
+            )}
+          </main>
+        </div>
+      </div>
+    </div>
   );
 };
 

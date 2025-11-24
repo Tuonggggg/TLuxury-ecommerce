@@ -1,40 +1,69 @@
 import express from "express";
 import {
   getCategories,
-  getCategoryById, // Thêm getCategoryBySlug vào đây
+  getCategoryById,
   getCategoryBySlug,
   createCategory,
   addChildCategory,
   updateCategory,
   deleteCategory,
   getProductsByCategory,
-} from "../controllers/CategoryController.js"; // Đảm bảo đã thêm getCategoryBySlug vào file Controller
+} from "../controllers/CategoryController.js";
 
 import { protect, authorizeRoles } from "../middlewares/AuthMiddleware.js";
+// ✅ 1. IMPORT MIDDLEWARE UPLOAD
+import upload from "../middlewares/UploadMiddleware.js";
 
 const router = express.Router();
 
-// Public
+// =========================================================
+// PUBLIC ROUTES
+// =========================================================
 router.get("/", getCategories);
 
-// PHẦN QUAN TRỌNG: Thêm route tìm kiếm bằng slug và đặt nó lên trước route tìm kiếm bằng ID
+// Tìm kiếm bằng slug (đặt trước ID để tránh conflict)
 router.get("/slug/:slug", getCategoryBySlug);
 
 // Lấy category theo ID
 router.get("/:id", getCategoryById);
 
-// Lấy sản phẩm theo ID category (bao gồm con)
+// Lấy sản phẩm theo ID category
 router.get("/:id/products", getProductsByCategory);
 
-// Private (admin)
-router.post("/", protect, authorizeRoles("admin"), createCategory);
+// =========================================================
+// PRIVATE ROUTES (ADMIN)
+// =========================================================
+
+// ✅ 2. THÊM upload.single('image') VÀO CÁC ROUTE TẠO/SỬA
+
+// Tạo danh mục gốc
+router.post(
+  "/",
+  protect,
+  authorizeRoles("admin"),
+  upload.single("image"), // <-- Thêm ở đây
+  createCategory
+);
+
+// Tạo danh mục con
 router.post(
   "/:parentId/child",
   protect,
   authorizeRoles("admin"),
+  upload.single("image"), // <-- Thêm ở đây
   addChildCategory
 );
-router.put("/:id", protect, authorizeRoles("admin"), updateCategory);
+
+// Cập nhật danh mục
+router.put(
+  "/:id",
+  protect,
+  authorizeRoles("admin"),
+  upload.single("image"), // <-- Thêm ở đây
+  updateCategory
+);
+
+// Xóa danh mục
 router.delete("/:id", protect, authorizeRoles("admin"), deleteCategory);
 
 export default router;

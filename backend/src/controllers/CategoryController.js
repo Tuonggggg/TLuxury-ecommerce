@@ -1,30 +1,21 @@
 import Category from "../models/CategoryModel.js";
-import Product from "../models/ProductModel.js";
+import Product from "../models/productModel.js";
+import mongoose from "mongoose";
+import { removeVietnameseSigns } from "../utils/stringUtils.js";
 
 // =========================================================
-// TỐI ƯU CACHE (Nâng cao)
+// TỐI ƯU CACHE (Giữ nguyên)
 // =========================================================
-
-// Khởi tạo cache rỗng
 let categoryMapCache = null;
 let cacheTimestamp = 0;
-// Đặt thời gian cache (ví dụ: 10 phút)
 const CACHE_DURATION_MS = 10 * 60 * 1000;
 
-/**
- * Hàm này lấy category map từ cache hoặc fetch mới nếu cache cũ
- */
 async function getCategoryMap() {
   const now = Date.now();
-  // Nếu cache còn hạn, trả về cache
   if (categoryMapCache && now - cacheTimestamp < CACHE_DURATION_MS) {
     return categoryMapCache;
   }
-
-  // Nếu cache hết hạn, fetch mới
-  // console.log("Refreshing category map cache..."); // Bỏ comment nếu muốn debug
   const allCategories = await Category.find({}).select("_id parent").lean();
-
   const categoryMap = new Map();
   allCategories.forEach((cat) => {
     const parentIdStr = cat.parent ? cat.parent.toString() : "root";
@@ -33,81 +24,53 @@ async function getCategoryMap() {
     }
     categoryMap.get(parentIdStr).push(cat);
   });
-
-  // Lưu vào cache
   categoryMapCache = categoryMap;
   cacheTimestamp = now;
   return categoryMap;
 }
 
-// -------------------------------------------------------------------
-// PHẦN TỐI ƯU HÓA: Lấy tất cả ID Category con (cha + con)
-// -------------------------------------------------------------------
-
-/**
- * Hàm đệ quy tối ưu, lấy tất cả categoryId con (cha + con)
- * Sử dụng cache để tránh N+1 query.
- */
 async function getAllCategoryIdsOptimized(parentId) {
-  // BƯỚC 1: Lấy map từ cache thay vì query
-  const categoryMap = await getCategoryMap(); // BƯỚC 2: Hàm đệ quy/tìm kiếm trong bộ nhớ
-
+  const categoryMap = await getCategoryMap();
   const ids = [];
   function findChildrenIds(currentId) {
-    // Đẩy ID hiện tại vào mảng
-    ids.push(currentId); // Chuyển ID sang chuỗi để tra cứu trong Map
+    ids.push(currentId);
     const children = categoryMap.get(currentId.toString()) || [];
     for (const child of children) {
       findChildrenIds(child._id);
     }
   }
-
   findChildrenIds(parentId);
   return ids;
 }
 
-// -------------------------------------------------------------------
+// =========================================================
 // CONTROLLER CHÍNH
-// -------------------------------------------------------------------
+// =========================================================
 
-/**
- * Lấy sản phẩm theo category (bao gồm subcategories) + Pagination + Filter
- */
 export const getProductsByCategory = async (req, res) => {
   try {
-    const parentId = req.params.id; // ID của category cha
+    const parentId = req.params.id;
     const {
       sortBy = "createdAt",
       order = "desc",
       page = 1,
       limit = 10,
       brand,
-    } = req.query; // 1. Lấy tất cả category ID liên quan (cha + con) (Sử dụng hàm tối ưu)
-
-    const categoryIds = await getAllCategoryIdsOptimized(parentId); // 2. Thiết lập điều kiện tìm kiếm (query)
-
-    const query = {
-      category: { $in: categoryIds },
-    };
-
-    if (brand && brand !== "all") {
-      query.brand = brand;
-    } // 3. Thiết lập Phân trang (Pagination)
-
+    } = req.query;
+    const categoryIds = await getAllCategoryIdsOptimized(parentId);
+    const query = { category: { $in: categoryIds } };
+    if (brand && brand !== "all") query.brand = brand;
     const pageSize = parseInt(limit, 10);
-    const skip = (parseInt(page, 10) - 1) * pageSize; // 4. Thiết lập Sắp xếp (Sort)
+    const skip = (parseInt(page, 10) - 1) * pageSize;
     const sort = {};
-    sort[sortBy] = order === "asc" ? 1 : -1; // 5. Lấy tổng số sản phẩm (cho phân trang)
-
+    sort[sortBy] = order === "asc" ? 1 : -1;
     const totalProducts = await Product.countDocuments(query);
-    const totalPages = Math.ceil(totalProducts / pageSize); // 6. Lấy sản phẩm
-
+    const totalPages = Math.ceil(totalProducts / pageSize);
     const products = await Product.find(query)
       .populate("category", "name slug")
       .sort(sort)
       .skip(skip)
       .limit(pageSize);
-
     res.json({
       products,
       page: parseInt(page, 10),
@@ -120,10 +83,6 @@ export const getProductsByCategory = async (req, res) => {
   }
 };
 
-/**
- * Lấy chi tiết 1 category + children theo slug
- * (Quan trọng cho trang CategoryPage)
- */
 export const getCategoryBySlug = async (req, res) => {
   try {
     const category = await Category.findOne({ slug: req.params.slug }).populate(
@@ -137,9 +96,6 @@ export const getCategoryBySlug = async (req, res) => {
   }
 };
 
-/**
- * Lấy tất cả category gốc + children (đa cấp)
- */
 export const getCategories = async (req, res) => {
   try {
     const categories = await Category.find({ parent: null }).populate({
@@ -152,9 +108,6 @@ export const getCategories = async (req, res) => {
   }
 };
 
-/**
- * Lấy chi tiết 1 category + children (theo ID)
- */
 export const getCategoryById = async (req, res) => {
   try {
     const category = await Category.findById(req.params.id).populate(
@@ -168,84 +121,125 @@ export const getCategoryById = async (req, res) => {
   }
 };
 
-/**
- * Tạo category gốc
- */
+// =========================================================
+// 🟢 TẠO CATEGORY (Đã Sửa Lỗi parentId is not defined)
+// =========================================================
 export const createCategory = async (req, res) => {
   try {
-    // ✅ Đã thêm 'image'
-    const { name, slug, description, image } = req.body;
+    // Lấy dữ liệu từ FormData
+    let { name, slug, description, parent, customPath } = req.body;
 
-    const exists = await Category.findOne({ $or: [{ name }, { slug }] });
-    if (exists) return res.status(400).json({ message: "Danh mục đã tồn tại" });
+    if (!name)
+      return res.status(400).json({ message: "Tên danh mục là bắt buộc" });
 
-    // ✅ Đã thêm 'image'
-    const category = new Category({ name, slug, description, image });
+    const finalSlug =
+      slug || removeVietnameseSigns(name).toLowerCase().replace(/\s+/g, "-");
+    const exists = await Category.findOne({ slug: finalSlug });
+    if (exists)
+      return res
+        .status(400)
+        .json({ message: "Danh mục đã tồn tại (trùng slug)" });
+
+    // ✅ FIX LỖI QUAN TRỌNG: Sử dụng biến 'finalParentId' thay vì 'parentId' chưa khai báo
+    let finalParentId = null;
+
+    // Kiểm tra chuỗi "null", "undefined", "root" do FormData gửi lên
+    if (
+      parent &&
+      parent !== "root" &&
+      parent !== "null" &&
+      parent !== "undefined" &&
+      parent !== ""
+    ) {
+      if (mongoose.Types.ObjectId.isValid(parent)) {
+        const parentCat = await Category.findById(parent);
+        if (!parentCat)
+          return res
+            .status(400)
+            .json({ message: "Danh mục cha không tồn tại" });
+        finalParentId = parent;
+      }
+    }
+
+    if (customPath === "null" || customPath === "undefined") customPath = null;
+
+    let imageUrl = null;
+    if (req.file) imageUrl = req.file.path;
+
+    const category = new Category({
+      name,
+      slug: finalSlug,
+      description,
+      image: imageUrl,
+      parent: finalParentId, // ✅ Sử dụng đúng biến 'finalParentId'
+      customPath: customPath || null,
+    });
+
     await category.save();
     res.status(201).json(category);
   } catch (error) {
-    res.status(400).json({ message: error.message });
+    console.error("Create Category Error:", error);
+    res.status(500).json({ message: error.message });
   }
 };
 
-/**
- * Tạo category con
- */
-export const addChildCategory = async (req, res) => {
-  try {
-    const { parentId } = req.params;
-    // ✅ Đã thêm 'image'
-    const { name, slug, description, image } = req.body;
-
-    const parent = await Category.findById(parentId);
-    if (!parent)
-      return res.status(404).json({ message: "Category cha không tồn tại" });
-
-    const exists = await Category.findOne({ $or: [{ name }, { slug }] });
-    if (exists) return res.status(400).json({ message: "Danh mục đã tồn tại" });
-
-    // ✅ Đã thêm 'image'
-    const child = new Category({
-      name,
-      slug,
-      description,
-      parent: parentId,
-      image,
-    });
-    await child.save(); // Middleware pre('save') sẽ tự động thêm vào parent.children
-    res.status(201).json({
-      message: "Thêm category con thành công",
-      category: child,
-    });
-  } catch (error) {
-    res.status(400).json({ message: error.message });
-  }
-};
-
-/**
- * Cập nhật category
- */
+// =========================================================
+// 🟡 CẬP NHẬT CATEGORY (Đã Sửa Lỗi Logic Parent)
+// =========================================================
 export const updateCategory = async (req, res) => {
   try {
-    // ✅ Đã thêm 'image'
-    const { name, slug, description, parent, image } = req.body;
-
+    let { name, slug, description, parent, customPath } = req.body;
     const category = await Category.findById(req.params.id);
+
     if (!category)
-      return res.status(404).json({ message: "Không tìm thấy danh mục" }); // Nếu parent thay đổi, cần update children của parent cũ & parent mới
+      return res.status(404).json({ message: "Không tìm thấy danh mục" });
 
     const oldParentId = category.parent ? category.parent.toString() : null;
-    const newParentId = parent || null;
+
+    // ✅ FIX LỖI: Sử dụng biến 'newParentId'
+    let newParentId = null;
+
+    if (
+      parent &&
+      parent !== "root" &&
+      parent !== "null" &&
+      parent !== "undefined" &&
+      parent !== ""
+    ) {
+      if (mongoose.Types.ObjectId.isValid(parent)) {
+        if (parent === category._id.toString()) {
+          return res
+            .status(400)
+            .json({ message: "Không thể chọn chính danh mục này làm cha." });
+        }
+        newParentId = parent;
+      }
+    }
 
     category.name = name || category.name;
-    category.slug = slug || category.slug;
+    if (name) {
+      category.slug =
+        slug || removeVietnameseSigns(name).toLowerCase().replace(/\s+/g, "-");
+    }
     category.description = description || category.description;
-    category.parent = newParentId;
-    category.image = image || category.image; // ✅ Đã thêm dòng này
 
-    await category.save(); // Nếu parent thay đổi, cập nhật children của parent cũ và parent mới
+    if (customPath && customPath !== "undefined" && customPath !== "null") {
+      category.customPath = customPath;
+    }
 
-    if (oldParentId && oldParentId !== newParentId) {
+    category.parent = newParentId; // ✅ Sử dụng đúng biến 'newParentId'
+
+    if (req.file) {
+      category.image = req.file.path;
+    }
+
+    await category.save();
+
+    // Cập nhật quan hệ cha cũ
+    if (
+      oldParentId &&
+      oldParentId !== (newParentId ? newParentId.toString() : null)
+    ) {
       const oldParent = await Category.findById(oldParentId);
       if (oldParent) {
         oldParent.children = oldParent.children.filter(
@@ -257,23 +251,17 @@ export const updateCategory = async (req, res) => {
 
     res.json(category);
   } catch (error) {
-    res.status(400).json({ message: error.message });
-    T;
+    console.error("Update Category Error:", error);
+    res.status(500).json({ message: error.message });
   }
 };
 
-/**
- * Xóa category
- */
 export const deleteCategory = async (req, res) => {
   try {
     const category = await Category.findById(req.params.id);
     if (!category)
-      return res.status(404).json({ message: "Không tìm thấy danh mục" }); // Xóa tất cả children recursively
-
+      return res.status(404).json({ message: "Không tìm thấy danh mục" });
     await deleteCategoryRecursive(category._id);
-
-    // Cập nhật parent (nếu có)
     if (category.parent) {
       const parent = await Category.findById(category.parent);
       if (parent) {
@@ -283,26 +271,56 @@ export const deleteCategory = async (req, res) => {
         await parent.save();
       }
     }
-
     res.json({ message: "Xóa danh mục thành công" });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
 };
 
-/**
- * Hàm xóa category recursively
- */
 async function deleteCategoryRecursive(categoryId) {
   const category = await Category.findById(categoryId);
-  if (!category) return; // Xóa tất cả children trước
-
+  if (!category) return;
   if (category.children && category.children.length > 0) {
     for (const childId of category.children) {
       await deleteCategoryRecursive(childId);
     }
-  } // Xóa category hiện tại
-
-
+  }
   await Category.findByIdAndDelete(categoryId);
 }
+
+// (Bạn có thể bỏ hàm addChildCategory vì createCategory đã xử lý đủ.
+// Nhưng nếu muốn giữ, hãy đảm bảo dùng đúng biến)
+export const addChildCategory = async (req, res) => {
+  try {
+    const { parentId } = req.params; // ✅ Lấy ID cha từ URL
+    const { name, slug, description, customPath } = req.body;
+
+    const parent = await Category.findById(parentId);
+    if (!parent)
+      return res.status(404).json({ message: "Category cha không tồn tại" });
+
+    const finalSlug =
+      slug || removeVietnameseSigns(name).toLowerCase().replace(/\s+/g, "-");
+    const exists = await Category.findOne({ slug: finalSlug });
+    if (exists) return res.status(400).json({ message: "Danh mục đã tồn tại" });
+
+    let imageUrl = null;
+    if (req.file) imageUrl = req.file.path;
+
+    const child = new Category({
+      name,
+      slug: finalSlug,
+      description,
+      parent: parentId, // ✅ Sử dụng parentId từ params
+      image: imageUrl,
+      customPath: customPath || null,
+    });
+
+    await child.save();
+    res
+      .status(201)
+      .json({ message: "Thêm category con thành công", category: child });
+  } catch (error) {
+    res.status(400).json({ message: error.message });
+  }
+};
